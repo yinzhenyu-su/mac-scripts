@@ -13,7 +13,7 @@ set keepAliveAppIDs to {"com.tencent.xinwei", "com.tencent.qq", "com.tencent.qqm
 
 -- 2.2 基于进程名的白名单 (备用)
 -- 适用于没有固定 Bundle ID 或不方便查询的传统应用
-set keepAliveApps to {"Finder", "Hammerspoon", "Swish", "Bob", "Ice", "PopClip", "ZeroTier", "ClashX Meta", "ClashX Pro", "Longshot", "BetterTouchTool", "DingTalk"}
+set keepAliveApps to {"Finder", "OrbStack", "QSpace Pro", "WeChat", "QQ", "QQMusic", "WeType", "Hammerspoon", "Swish", "Bob", "Ice", "PopClip", "Pixelmator Pro", "Sketch", "ZeroTier", "ClashX Meta", "v2rayN", "ClashX Pro", "Longshot", "BetterTouchTool", "DingTalk"}
 
 
 
@@ -175,20 +175,39 @@ tell application "System Events"
 			set shouldQuit to false
 			my logInfo("🛡️ 命中进程名白名单 (" & procName & ")，强制不退出", debugMode)
 		else
+			-- 检查当前窗口是否为非标准窗口 (如偏好设置、关于等)
+			set isNonStandardWindow to false
 			try
-				set standardWindowCount to count of (windows of frontProcess where subrole is "AXStandardWindow")
+				tell frontProcess
+					if exists window 1 then
+						if subrole of window 1 is not "AXStandardWindow" then
+							set isNonStandardWindow to true
+						end if
+					end if
+				end tell
 			on error
-				set standardWindowCount to 999
+				set isNonStandardWindow to false
 			end try
-			
-			my logInfo("🪟 标准窗口数量: " & standardWindowCount, debugMode)
-			
-			if standardWindowCount is less than or equal to 1 then
-				set shouldQuit to true
-				my logInfo("✅ 判定: 最后一个窗口，准备退出", debugMode)
-			else
+
+			if isNonStandardWindow is true then
 				set shouldQuit to false
-				my logInfo("❌ 判定: 还有其他窗口 (" & standardWindowCount & "个)，仅关闭当前", debugMode)
+				my logInfo("🛡️ 当前窗口非标准窗口 (非 AXStandardWindow)，仅关闭不退出", debugMode)
+			else
+				try
+					set standardWindowCount to count of (windows of frontProcess where subrole is "AXStandardWindow")
+				on error
+					set standardWindowCount to 999
+				end try
+				
+				my logInfo("🪟 标准窗口数量: " & standardWindowCount, debugMode)
+				
+				if standardWindowCount is less than or equal to 1 then
+					set shouldQuit to true
+					my logInfo("✅ 判定: 最后一个窗口，准备退出", debugMode)
+				else
+					set shouldQuit to false
+					my logInfo("❌ 判定: 还有其他窗口 (" & standardWindowCount & "个)，仅关闭当前", debugMode)
+				end if
 			end if
 		end if
 		
