@@ -3,7 +3,7 @@
 -- ===========================
 
 -- 1. 调试开关: 设置为 true 会在桌面生成 btt_debug_log.txt，日常使用建议设为 false
-set debugMode to true 
+set debugMode to false 
 
 -- 2. 白名单配置 (Whitelist Configuration)
 -- ===================================
@@ -13,7 +13,7 @@ set keepAliveAppIDs to {"com.tencent.xinwei", "com.tencent.qq", "com.tencent.qqm
 
 -- 2.2 基于进程名的白名单 (备用)
 -- 适用于没有固定 Bundle ID 或不方便查询的传统应用
-set keepAliveApps to {"Finder", "OrbStack", "QSpace Pro", "WeChat", "QQ", "QQMusic", "WeType", "Hammerspoon", "Swish", "Bob", "Ice", "PopClip", "Pixelmator Pro", "Sketch", "ZeroTier", "ClashX Meta", "v2rayN", "ClashX Pro", "Longshot", "BetterTouchTool", "DingTalk"}
+set keepAliveApps to {"OrbStack", "WeChat", "QQ", "QQMusic", "WeType", "Hammerspoon", "Swish", "Bob", "Ice", "PopClip", "Pixelmator Pro", "Sketch", "ZeroTier", "ClashX Meta", "v2rayN", "ClashX Pro", "Longshot", "BetterTouchTool", "DingTalk"}
 
 
 
@@ -78,6 +78,8 @@ on quitApplicationSafely(appID, appName, debugMode)
 
         -- 第二次尝试退出
         tell application id appID to quit
+        
+        -- 等待应用响应
         delay 0.3
 
         -- 最终检查
@@ -148,7 +150,7 @@ tell application "System Events"
 		end try
 		
 		-- 获取应用版本 (更可靠的方法)
-		if appPath is not "" then
+		if debugMode is true and appPath is not "" then
 			try
 				set plistPath to quoted form of (appPath & "/Contents/Info.plist")
 				set appVersion to do shell script "defaults read " & plistPath & " CFBundleShortVersionString"
