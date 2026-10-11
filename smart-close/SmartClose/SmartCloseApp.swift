@@ -155,10 +155,16 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
         settings.target = self
         menu.addItem(settings)
 
-        let addCurrent = NSMenuItem(title: "将当前 App 加入例外", action: #selector(addCurrentApplication), keyEquivalent: "")
-        addCurrent.target = self
-        addCurrent.isEnabled = lastActiveApplication?.bundleIdentifier != nil
-        menu.addItem(addCurrent)
+        let bundleID = lastActiveApplication?.bundleIdentifier
+        let applicationName = lastActiveApplication?.localizedName
+        let isExceptedByID = bundleID.map { store.rules.contains(AppRule(match: .bundleID, value: $0)) } ?? false
+        let isExceptedByName = applicationName.map { store.rules.contains(AppRule(match: .applicationName, value: $0)) } ?? false
+        if !isExceptedByID && !isExceptedByName {
+            let addCurrent = NSMenuItem(title: "将 \(applicationName ?? "当前 App") 加入例外", action: #selector(addCurrentApplication), keyEquivalent: "")
+            addCurrent.target = self
+            addCurrent.isEnabled = bundleID != nil
+            menu.addItem(addCurrent)
+        }
 
         let login = NSMenuItem(title: "登录时启动", action: #selector(toggleLoginItem), keyEquivalent: "")
         login.target = self
