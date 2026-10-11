@@ -54,13 +54,14 @@ final class RuleStore: ObservableObject {
             rules = saved
         } else {
             rules = Set([
-                "com.tencent.xinwei", "com.tencent.qq", "com.tencent.qqmusic",
-                "com.spotify.client", "com.apple.Music", "com.meta.Telegram", "md.obsidian"
+                "com.tencent.xinWeChat", "com.tencent.qq", "com.tencent.qqmusic",
+                "com.spotify.client", "com.apple.Music", "com.meta.Telegram",
+                "com.netease.163music",
             ].map { AppRule(match: .bundleID, value: $0) } + [
-                "OrbStack", "WeChat", "QQ", "QQMusic", "WeType", "Hammerspoon",
-                "Swish", "Bob", "Ice", "PopClip", "Pixelmator Pro", "Sketch",
+                "OrbStack", "QQ", "QQMusic", "WeType", "Hammerspoon",
+                "Swish", "Bob", "Ice", "PopClip",
                 "ZeroTier", "ClashX Meta", "v2rayN", "ClashX Pro", "Longshot",
-                "BetterTouchTool", "DingTalk", "Finder"
+                "BetterTouchTool", "DingTalk",
             ].map { AppRule(match: .applicationName, value: $0) })
         }
     }
