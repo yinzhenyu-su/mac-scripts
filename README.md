@@ -13,3 +13,7 @@
 它巧妙地解决了 macOS `System Events` 服务与某些应用（如基于 Electron 的应用）在识别进程和窗口时的兼容性问题，特别是通过主动从 BetterTouchTool (BTT) 获取 Bundle ID，并修复了 `System Events` 内部数据混淆的难题，确保了精确操作。
 
 [查看 `quit-on-close` 脚本详细排查记录](quit-on-close/debug-log.md)
+
+### `smart-close`（智能退出菜单栏 App）
+
+原生 macOS 菜单栏 App，支持点击红色关闭按钮时智能退出，以及可选的 `⌘W` 智能退出。构建、安装和权限设置见 [智能退出使用说明](smart-close/README.md)。
