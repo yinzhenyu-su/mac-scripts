@@ -1,0 +1,33 @@
+name: Release DMG
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Build DMG
+        run: ./smart-close/package-dmg.sh
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+          DMG_PATH: smart-close/build/智能退出.dmg
+        run: |
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release upload "$TAG_NAME" "$DMG_PATH" --clobber
+          else
+            gh release create "$TAG_NAME" "$DMG_PATH" \
+              --title "智能退出 $TAG_NAME" \
+              --generate-notes
+          fi

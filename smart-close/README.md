@@ -6,6 +6,31 @@
 
 需要 macOS 13+ 和 Xcode。在本目录执行；如果“智能退出”已在运行，请先从菜单栏退出旧实例：
 
+构建并生成可拖入“应用程序”的 DMG：
+
+```sh
+./package-dmg.sh
+```
+
+产物为 `build/智能退出.dmg`。脚本会在 DMG 暂存副本上尝试移除 `com.apple.quarantine`，不会修改构建目录中的 `.app`。下载后的 DMG 仍可能被浏览器或 macOS 标记隔离；若首次打开被拦截，可将 App 拖到“应用程序”后执行：
+
+```sh
+xattr -rd com.apple.quarantine "/Applications/智能退出.app"
+```
+
+该操作只适用于确认来源可信的未签名 App，也不会代替开发者签名或公证。
+
+## GitHub Release
+
+推送以 `v` 开头的标签（例如 `v1.0.0`）会自动在 GitHub Actions 的 macOS runner 上构建 DMG，并创建对应的 GitHub Release，将 `智能退出.dmg` 作为下载附件。重新运行同一标签的工作流会替换该 Release 中的 DMG 附件。
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+当前 Release 产物未签名和公证；分发给用户时，首次打开可能需要按上面的说明移除隔离属性。
+
 ```sh
 xcodebuild -project SmartClose.xcodeproj -scheme SmartClose -configuration Release -derivedDataPath build build
 open "build/Build/Products/Release/智能退出.app"
