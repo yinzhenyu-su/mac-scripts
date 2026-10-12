@@ -1,6 +1,6 @@
 import AppKit
 
-// Both icons use the same window-and-exit-arrow silhouette.
+// The app icon uses a purple door-and-exit-arrow mark; the menu icon remains a template glyph.
 // Run from smart-close/: swift Assets/GenerateIcons.swift
 
 let assetRoot = URL(fileURLWithPath: "SmartClose/Assets.xcassets", isDirectory: true)
@@ -21,17 +21,30 @@ func stroke(_ points: [CGPoint], color: NSColor, width: CGFloat) {
     path.stroke()
 }
 
-func drawGlyph(color: NSColor) {
-    let window = NSBezierPath(roundedRect: NSRect(x: 232, y: 288, width: 534, height: 448), xRadius: 80, yRadius: 80)
-    window.lineWidth = 58
+func drawExitDoorGlyph(color: NSColor) {
+    let frame = NSBezierPath()
+    frame.lineCapStyle = .round
+    frame.lineJoinStyle = .round
+    frame.lineWidth = 58
+    frame.move(to: CGPoint(x: 570, y: 786))
+    frame.line(to: CGPoint(x: 282, y: 786))
+    frame.line(to: CGPoint(x: 282, y: 238))
+    frame.line(to: CGPoint(x: 570, y: 238))
     color.setStroke()
-    window.stroke()
+    frame.stroke()
 
-    stroke([CGPoint(x: 260, y: 608), CGPoint(x: 738, y: 608)], color: color, width: 45)
+    let door = NSBezierPath()
+    door.move(to: CGPoint(x: 420, y: 746))
+    door.line(to: CGPoint(x: 554, y: 790))
+    door.line(to: CGPoint(x: 554, y: 234))
+    door.line(to: CGPoint(x: 420, y: 278))
+    door.close()
+    color.setFill()
+    door.fill()
 
-    // The arrow crosses the window boundary so the action reads as "quit".
-    stroke([CGPoint(x: 454, y: 455), CGPoint(x: 828, y: 455)], color: color, width: 66)
-    stroke([CGPoint(x: 704, y: 566), CGPoint(x: 828, y: 455), CGPoint(x: 704, y: 344)], color: color, width: 66)
+    let arrowEnd = CGPoint(x: 812, y: 512)
+    stroke([CGPoint(x: 500, y: 512), arrowEnd], color: color, width: 66)
+    stroke([CGPoint(x: 690, y: 632), arrowEnd, CGPoint(x: 690, y: 392)], color: color, width: 66)
 }
 
 func renderPNG(size: Int, at url: URL, draw: () -> Void) throws {
@@ -66,18 +79,14 @@ func renderPNG(size: Int, at url: URL, draw: () -> Void) throws {
 
 func drawAppIcon() {
     let body = NSBezierPath(roundedRect: NSRect(x: 72, y: 72, width: 880, height: 880), xRadius: 206, yRadius: 206)
-    NSGradient(starting: NSColor(red: 0.08, green: 0.68, blue: 0.62, alpha: 1),
-               ending: NSColor(red: 0.03, green: 0.33, blue: 0.47, alpha: 1))!
+    NSGradient(starting: NSColor(red: 0.66, green: 0.35, blue: 0.98, alpha: 1),
+               ending: NSColor(red: 0.32, green: 0.12, blue: 0.78, alpha: 1))!
         .draw(in: body, angle: 135)
-    NSColor.white.withAlphaComponent(0.23).setStroke()
+    NSColor.white.withAlphaComponent(0.12).setStroke()
     body.lineWidth = 8
     body.stroke()
 
-    drawGlyph(color: .white)
-
-    let closeDot = NSBezierPath(ovalIn: NSRect(x: 283, y: 650, width: 45, height: 45))
-    NSColor(red: 1, green: 0.78, blue: 0.51, alpha: 1).setFill()
-    closeDot.fill()
+    drawExitDoorGlyph(color: .white)
 }
 
 func drawMenuIcon() {
