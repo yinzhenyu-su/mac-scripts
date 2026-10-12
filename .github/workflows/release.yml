@@ -23,12 +23,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
           DMG_PATH: smart-close/build/智能退出.dmg
+          RELEASE_PATH: smart-close/build/SmartClose-${{ github.ref_name }}.dmg
         run: |
-          RELEASE_ASSET="$DMG_PATH#SmartClose-${TAG_NAME}.dmg"
+          cp "$DMG_PATH" "$RELEASE_PATH"
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            gh release upload "$TAG_NAME" "$RELEASE_ASSET" --clobber
+            gh release upload "$TAG_NAME" "$RELEASE_PATH" --clobber
           else
-            gh release create "$TAG_NAME" "$RELEASE_ASSET" \
+            gh release create "$TAG_NAME" "$RELEASE_PATH" \
               --title "智能退出 $TAG_NAME" \
               --generate-notes
           fi
