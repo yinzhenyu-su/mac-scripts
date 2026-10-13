@@ -38,6 +38,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let image = NSImage(named: "MenuBarIcon") {
             image.isTemplate = true
+            image.size = NSSize(width: 24, height: 24)
             statusItem.button?.image = image
         }
         statusItem.button?.toolTip = "智能退出"
