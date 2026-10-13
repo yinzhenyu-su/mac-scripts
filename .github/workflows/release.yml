@@ -16,7 +16,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build DMG
-        run: ./smart-close/package-dmg.sh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: ./smart-close/package-dmg.sh "$RELEASE_TAG" "$BUILD_NUMBER"
 
       - name: Create or update GitHub Release
         env:
