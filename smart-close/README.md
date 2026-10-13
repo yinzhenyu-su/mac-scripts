@@ -22,11 +22,17 @@ xattr -rd com.apple.quarantine "/Applications/智能退出.app"
 
 ## GitHub Release
 
-推送以 `v` 开头的标签（例如 `v1.0.0`）会自动在 GitHub Actions 的 macOS runner 上构建 DMG，并创建对应的 GitHub Release，将 `智能退出.dmg` 作为下载附件。重新运行同一标签的工作流会替换该 Release 中的 DMG 附件。
+推送格式为 `v主版本.次版本.修订版本` 的标签（例如 `v1.2.2`）会自动在 GitHub Actions 的 macOS runner 上构建 DMG，并创建对应的 GitHub Release，附件名称为 `SmartClose-v1.2.2.dmg`。应用版本取自标签（去掉 `v`），构建号取自 GitHub Actions 运行编号；生成 DMG 前会校验应用内的两个版本值，不一致则终止发布。重新运行同一标签的工作流会替换该 Release 中的 DMG 附件。
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.2.2
+git push origin v1.2.2
+```
+
+本地不带参数打包时使用 Xcode 工程中的默认版本（`MARKETING_VERSION` 和 `CURRENT_PROJECT_VERSION`）。也可以指定发布标签和构建号：
+
+```sh
+./package-dmg.sh v1.2.2 6
 ```
 
 当前 Release 产物未签名和公证；分发给用户时，首次打开可能需要按上面的说明移除隔离属性。
