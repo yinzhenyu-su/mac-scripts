@@ -301,6 +301,8 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
 }
 
 private struct AboutView: View {
+    @State private var iconRefreshID = 0
+
     private var version: String {
         let info = Bundle.main.infoDictionary ?? [:]
         let version = info["CFBundleShortVersionString"] as? String ?? "—"
@@ -311,9 +313,7 @@ private struct AboutView: View {
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 8) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .scaledToFit()
+                AboutAppIcon(refreshID: iconRefreshID)
                     .frame(width: 80, height: 80)
                 Text("智能退出").font(.title2.bold())
                 Text(version).font(.callout).foregroundStyle(.secondary)
@@ -347,5 +347,23 @@ private struct AboutView: View {
         }
         .padding(28)
         .frame(width: 440, height: 460)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            iconRefreshID += 1
+        }
+    }
+}
+
+private struct AboutAppIcon: NSViewRepresentable {
+    let refreshID: Int
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.imageScaling = .scaleProportionallyUpOrDown
+        return view
+    }
+
+    func updateNSView(_ view: NSImageView, context: Context) {
+        // 使用系统文件图标，让 Icon Services 按图标外观设置绘制当前变体。
+        view.image = NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
     }
 }
