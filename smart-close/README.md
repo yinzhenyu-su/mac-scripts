@@ -4,7 +4,7 @@
 
 ## 构建与运行
 
-需要 macOS 13+ 和 Xcode。在本目录执行；如果“智能退出”已在运行，请先从菜单栏退出旧实例：
+运行需要 macOS 13+，构建需要 Xcode 26+。在本目录执行；如果“智能退出”已在运行，请先从菜单栏退出旧实例：
 
 构建并生成可拖入“应用程序”的 DMG：
 
@@ -55,7 +55,7 @@ open "/Applications/智能退出.app"
 
 菜单栏中的“⌘W 智能退出”可单独开启，默认关闭。开启后快捷键仍先由目标 App 正常处理；只有原本聚焦的是最后一个标准窗口，且该 App 的窗口已关闭或从屏幕消失时，才请求它正常退出。这样也能处理 Discord 一类将窗口隐藏、但仍保留辅助功能窗口对象的 App。关闭浏览器普通标签页、保存对话框阻止关闭或窗口信息不可读取时不会额外退出。若系统要求输入监控权限，菜单会显示授权入口；键盘监听无法启动时，鼠标关闭按钮功能仍可继续工作。
 
-应用包名称为 `智能退出.app`。应用程序图标和菜单栏图标为直接生成的 PNG 资源，位于 `SmartClose/Assets.xcassets`；图标尺寸由这些主图缩放适配。不要运行旧版 `Assets/GenerateIcons.swift`，它会覆盖当前图标。
+应用包名称为 `智能退出.app`。应用程序图标使用 `SmartClose/AppIcon.icon`，其中 `Assets/icon-default.png` 为默认外观，`Assets/icon-dark.png` 为深色外观；macOS 26+ 按系统图标外观设置选择。旧系统保留 `SmartClose/Assets.xcassets/AppIcon.appiconset` 中的默认图标。菜单栏模板图标仍位于 `SmartClose/Assets.xcassets`。不要运行旧版 `Assets/GenerateIcons.swift`，它会覆盖当前图标。
 
 此工程没有启用 App Sandbox，因为沙盒应用无法通过 `NSRunningApplication.terminate()` 请求其他 App 退出。向普通用户分发时，需在 Xcode 配置开发者签名并对 App 进行公证。
 

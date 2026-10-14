@@ -11,6 +11,7 @@
 		A10000000000000000000003 /* RuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* RuleStore.swift */; };
 		A10000000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* SettingsView.swift */; };
 		A10000000000000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Assets.xcassets */; };
+		A10000000000000000000006 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* AppIcon.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,11 +22,12 @@
 		A20000000000000000000005 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A20000000000000000000006 /* 智能退出.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "智能退出.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A20000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A20000000000000000000008 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		A30000000000000000000001 = {isa = PBXGroup; children = (A30000000000000000000002 /* SmartClose */, A30000000000000000000003 /* Products */); sourceTree = "<group>"; };
-		A30000000000000000000002 /* SmartClose */ = {isa = PBXGroup; children = (A20000000000000000000001 /* SmartCloseApp.swift */, A20000000000000000000002 /* CloseMonitor.swift */, A20000000000000000000003 /* RuleStore.swift */, A20000000000000000000004 /* SettingsView.swift */, A20000000000000000000005 /* Info.plist */, A20000000000000000000007 /* Assets.xcassets */); path = SmartClose; sourceTree = "<group>"; };
+		A30000000000000000000002 /* SmartClose */ = {isa = PBXGroup; children = (A20000000000000000000001 /* SmartCloseApp.swift */, A20000000000000000000002 /* CloseMonitor.swift */, A20000000000000000000003 /* RuleStore.swift */, A20000000000000000000004 /* SettingsView.swift */, A20000000000000000000005 /* Info.plist */, A20000000000000000000007 /* Assets.xcassets */, A20000000000000000000008 /* AppIcon.icon */); path = SmartClose; sourceTree = "<group>"; };
 		A30000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000006 /* 智能退出.app */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -42,7 +44,7 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A50000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000005 /* Assets.xcassets in Resources */); runOnlyForDeploymentPostprocessing = 0; };
+		A50000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000005 /* Assets.xcassets in Resources */, A10000000000000000000006 /* AppIcon.icon in Resources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
