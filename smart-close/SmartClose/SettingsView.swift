@@ -13,7 +13,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 14) {
             Text("不自动退出的 App")
                 .font(.title2.bold())
-            Text("列表中的 App 即使只剩最后一个窗口，也会继续在后台运行。")
+            Text("列表中的 App 在关闭最后一个窗口时，会保留后台或自行管理后台")
                 .foregroundStyle(.secondary)
 
             List(sortedRules) { rule in

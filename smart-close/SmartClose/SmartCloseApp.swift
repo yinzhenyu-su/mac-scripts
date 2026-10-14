@@ -21,6 +21,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
     private let store = RuleStore()
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
+    private var aboutWindow: NSWindow?
     private var lastActiveApplication: NSRunningApplication?
     private var enabled = UserDefaults.standard.object(forKey: "enabled") as? Bool ?? true
     private var keyboardEnabled = UserDefaults.standard.bool(forKey: "keyboardEnabled")
@@ -152,9 +153,10 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
             }
         }
 
-        let settings = NSMenuItem(title: "例外应用…", action: #selector(openSettings), keyEquivalent: "")
-        settings.target = self
-        menu.addItem(settings)
+        let login = NSMenuItem(title: "登录时启动", action: #selector(toggleLoginItem), keyEquivalent: "")
+        login.target = self
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(login)
 
         let bundleID = lastActiveApplication?.bundleIdentifier
         let applicationName = lastActiveApplication?.localizedName
@@ -167,10 +169,9 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
             menu.addItem(addCurrent)
         }
 
-        let login = NSMenuItem(title: "登录时启动", action: #selector(toggleLoginItem), keyEquivalent: "")
-        login.target = self
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(login)
+        let settings = NSMenuItem(title: "例外应用…", action: #selector(openSettings), keyEquivalent: "")
+        settings.target = self
+        menu.addItem(settings)
 
         if !accessibilityGranted {
             let permission = NSMenuItem(title: "授予辅助功能权限…", action: #selector(requestAccessibility), keyEquivalent: "")
@@ -269,15 +270,21 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
     }
 
     @objc private func showAbout() {
-        let credits = NSMutableAttributedString(string: "关闭最后一个窗口时自动退出应用。\n支持红色关闭按钮与可选的 ⌘W；例外应用仅关闭窗口。\n\n辅助功能权限用于识别窗口；⌘W 功能还需输入监控权限。\n\n")
-        let repositoryURL = URL(string: "https://github.com/yinzhenyu-su/mac-scripts")!
-        credits.append(NSAttributedString(string: "项目仓库 ↗", attributes: [
-            .link: repositoryURL,
-            .foregroundColor: NSColor.linkColor,
-            .underlineStyle: NSUnderlineStyle.single.rawValue
-        ]))
+        if aboutWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 440, height: 460),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "关于智能退出"
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: AboutView())
+            window.center()
+            aboutWindow = window
+        }
+        aboutWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
     }
 
     @objc private func quitApp() {
@@ -290,5 +297,55 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
         alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.runModal()
+    }
+}
+
+private struct AboutView: View {
+    private var version: String {
+        let info = Bundle.main.infoDictionary ?? [:]
+        let version = info["CFBundleShortVersionString"] as? String ?? "—"
+        let build = info["CFBundleVersion"] as? String ?? "—"
+        return "版本 \(version)（\(build)）"
+    }
+
+    var body: some View {
+        VStack(spacing: 20) {
+            VStack(spacing: 8) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80, height: 80)
+                Text("智能退出").font(.title2.bold())
+                Text(version).font(.callout).foregroundStyle(.secondary)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("关闭最后一个窗口时自动退出应用。")
+                    Text("支持红色关闭按钮与可选的 ⌘W；例外应用仅关闭窗口。")
+                        .foregroundStyle(.secondary)
+                    Text("本软件需要授予辅助功能权限以识别窗口和 ⌘W 快捷键。")
+                        .foregroundStyle(.secondary)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("致谢名单").font(.headline)
+                    HStack(alignment: .top, spacing: 12) {
+                        Link("@hahahhqyou", destination: URL(string: "https://github.com/hahahhqyou")!)
+                    }
+                    .font(.callout)
+                }
+
+                Divider()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Link("项目仓库 ↗", destination: URL(string: "https://github.com/yinzhenyu-su/mac-scripts")!)
+                .font(.callout)
+        }
+        .padding(28)
+        .frame(width: 440, height: 460)
     }
 }
