@@ -13,7 +13,6 @@
 		A10000000000000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Assets.xcassets */; };
 		A10000000000000000000006 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* AppIcon.icon */; };
 		A10000000000000000000009 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000001 /* Sparkle */; };
-		A1000000000000000000000A /* Sparkle in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000001 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -34,7 +33,7 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A40000000000000000000001 /* SmartClose */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */; buildPhases = (A50000000000000000000003 /* Frameworks */, A50000000000000000000004 /* Embed Frameworks */, A50000000000000000000001 /* Sources */, A50000000000000000000002 /* Resources */); buildRules = (); dependencies = (); packageProductDependencies = (A90000000000000000000001 /* Sparkle */, ); name = SmartClose; productName = "智能退出"; productReference = A20000000000000000000006 /* 智能退出.app */; productType = "com.apple.product-type.application"; };
+		A40000000000000000000001 /* SmartClose */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */; buildPhases = (A50000000000000000000003 /* Frameworks */, A50000000000000000000001 /* Sources */, A50000000000000000000002 /* Resources */); buildRules = (); dependencies = (); packageProductDependencies = (A90000000000000000000001 /* Sparkle */, ); name = SmartClose; productName = "智能退出"; productReference = A20000000000000000000006 /* 智能退出.app */; productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -48,10 +47,6 @@
 /* Begin PBXFrameworksBuildPhase section */
 		A50000000000000000000003 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000009 /* Sparkle in Frameworks */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		A50000000000000000000004 /* Embed Frameworks */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = (A1000000000000000000000A /* Sparkle in Embed Frameworks */); name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0; };
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A50000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000005 /* Assets.xcassets in Resources */, A10000000000000000000006 /* AppIcon.icon in Resources */); runOnlyForDeploymentPostprocessing = 0; };
