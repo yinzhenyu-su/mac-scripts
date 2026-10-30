@@ -84,15 +84,18 @@ trap cleanup EXIT
 security create-keychain -p "$KC_PASS" "$KC"
 security set-keychain-settings -lut 600 "$KC"
 security unlock-keychain -p "$KC_PASS" "$KC"
-if ! security import "$CERT_PATH" -k "$KC" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign >/dev/null 2>&1; then
+IMPORT_OUT="$(security import "$CERT_PATH" -k "$KC" -P "$MACOS_CERT_PASSWORD" \
+  -T /usr/bin/codesign -T /usr/bin/security 2>&1)" || {
+  echo "$IMPORT_OUT" >&2
   fail "导入 .p12 失败：密码错误、文件损坏，或者里面只有证书没有私钥"
-fi
+}
 security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PASS" "$KC" >/dev/null
 
 IDENTITIES="$(security find-identity -v -p codesigning "$KC" | sed -n 's/^.*"\(.*\)"[[:space:]]*$/\1/p')"
 SIGN_IDENTITY="$(printf '%s\n' "$IDENTITIES" | grep -m1 '^Developer ID Application: ' || true)"
 if [[ -z "$SIGN_IDENTITY" ]]; then
-  echo "  这个 p12 里的身份：" >&2
+  echo "  临时钥匙串里的签名身份：" >&2
+  security find-identity -v -p codesigning "$KC" >&2 || true
   printf '%s\n' "$IDENTITIES" | sed 's/^/    /' >&2
   fail "没有 Developer ID Application 证书（Developer ID Installer / Apple Distribution 不能签 .app）"
 fi
