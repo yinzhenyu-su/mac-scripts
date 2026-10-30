@@ -44,8 +44,20 @@ openssl base64 -A -in AuthKey_XXXXXXXXXX.p8 -out AuthKey.p8.b64
 
 ## 二、配置 GitHub Secrets
 
+### 方式 A：一条命令（推荐）
+
 ```bash
-cd mac-scripts
+# 先确保 gh 已登录，且当前目录在仓库里
+./scripts/setup-signing-secrets.sh DeveloperID.p12 AuthKey_XXXXXXXXXX.p8 \
+  --issuer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+脚本会：验证 p12 里确实是 **Developer ID Application**（临时钥匙串，顺带校验密码）→ 从证书 CN 解析 `SIGN_IDENTITY` / `TEAM_ID` → 写入 8 个 secret（base64 通过管道直传，**磁盘不留临时文件**）→ 逐个校验。
+Key ID 从 `AuthKey_<KeyID>.p8` 文件名自动取。
+
+### 方式 B：手动（没有 gh 时用网页也行）
+
+```bash
 gh secret set MACOS_CERT_P12      < DeveloperID.p12.b64      # 证书（base64）
 gh secret set MACOS_CERT_PASSWORD --body '导出 p12 时设的密码'
 gh secret set KEYCHAIN_PASSWORD   --body "$(openssl rand -hex 16)"   # 任意随机串，CI 内部用
@@ -61,6 +73,8 @@ gh secret set TEAM_ID             --body 'ABCDE12345'
 ```bash
 gh secret list
 ```
+
+> ⚠️ `.p12` 含私钥，**不要发到聊天工具/邮箱**让任何人代配；只通过 `gh secret set` 或 GitHub 网页直传。
 
 ---
 
