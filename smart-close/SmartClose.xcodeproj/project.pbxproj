@@ -12,6 +12,8 @@
 		A10000000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* SettingsView.swift */; };
 		A10000000000000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000007 /* Assets.xcassets */; };
 		A10000000000000000000006 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* AppIcon.icon */; };
+		A10000000000000000000009 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000001 /* Sparkle */; };
+		A1000000000000000000000A /* Sparkle in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000001 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,16 +34,24 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A40000000000000000000001 /* SmartClose */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */; buildPhases = (A50000000000000000000001 /* Sources */, A50000000000000000000002 /* Resources */); buildRules = (); dependencies = (); name = SmartClose; productName = "智能退出"; productReference = A20000000000000000000006 /* 智能退出.app */; productType = "com.apple.product-type.application"; };
+		A40000000000000000000001 /* SmartClose */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */; buildPhases = (A50000000000000000000003 /* Frameworks */, A50000000000000000000004 /* Embed Frameworks */, A50000000000000000000001 /* Sources */, A50000000000000000000002 /* Resources */); buildRules = (); dependencies = (); packageProductDependencies = (A90000000000000000000001 /* Sparkle */, ); name = SmartClose; productName = "智能退出"; productReference = A20000000000000000000006 /* 智能退出.app */; productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A40000000000000000000002 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2700; TargetAttributes = {A40000000000000000000001 = {CreatedOnToolsVersion = 27.0; }; }; }; buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "SmartClose" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = zh_CN; hasScannedForEncodings = 0; knownRegions = (zh_CN, Base); mainGroup = A30000000000000000000001; productRefGroup = A30000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A40000000000000000000001 /* SmartClose */); };
+		A40000000000000000000002 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2700; TargetAttributes = {A40000000000000000000001 = {CreatedOnToolsVersion = 27.0; }; }; }; buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "SmartClose" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = zh_CN; hasScannedForEncodings = 0; knownRegions = (zh_CN, Base); packageReferences = (A80000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */, ); mainGroup = A30000000000000000000001; productRefGroup = A30000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A40000000000000000000001 /* SmartClose */); };
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
 		A50000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* SmartCloseApp.swift in Sources */, A10000000000000000000002 /* CloseMonitor.swift in Sources */, A10000000000000000000003 /* RuleStore.swift in Sources */, A10000000000000000000004 /* SettingsView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A50000000000000000000003 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000009 /* Sparkle in Frameworks */); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A50000000000000000000004 /* Embed Frameworks */ = {isa = PBXCopyFilesBuildPhase; buildActionMask = 2147483647; dstPath = ""; dstSubfolderSpec = 10; files = (A1000000000000000000000A /* Sparkle in Embed Frameworks */); name = "Embed Frameworks"; runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A50000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000005 /* Assets.xcassets in Resources */, A10000000000000000000006 /* AppIcon.icon in Resources */); runOnlyForDeploymentPostprocessing = 0; };
@@ -58,6 +68,15 @@
 		A60000000000000000000001 /* Build configuration list for PBXProject "SmartClose" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000001 /* Debug */, A70000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 		A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000003 /* Debug */, A70000000000000000000004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A80000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/sparkle-project/Sparkle"; requirement = {kind = upToNextMajorVersion; minimumVersion = 2.6.0; }; };
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A90000000000000000000001 /* Sparkle */ = {isa = XCSwiftPackageProductDependency; package = A80000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */; productName = Sparkle; };
+/* End XCSwiftPackageProductDependency section */
+
 	};
 	rootObject = A40000000000000000000002 /* Project object */;
 }
