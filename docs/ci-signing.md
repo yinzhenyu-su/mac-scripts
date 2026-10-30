@@ -110,6 +110,8 @@ export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 | `User interaction is not allowed` | 漏了 `security set-key-partition-list`（workflow 里已有） |
 | `security import` 报 `SecKeychainItemImport: One or more parameters passed to a function were not valid.` | 解码后的 `.p12` 是 **0 字节**。secret 里是 `openssl base64 -A` 生成的**单行** base64，而 `openssl base64 -d` 按 1024 字符行缓冲，遇到超长单行会**静默输出 0 字节且 exit 0**。workflow 已改成 `openssl base64 -d -A`（等价可选 `base64 --decode`）；手动复现时别漏 `-A` |
 | 公证报 `Invalid` / `signature is invalid` | 必须有 **Hardened Runtime**（`--options runtime`）和 **`--timestamp`**；脚本里用 `OTHER_CODE_SIGN_FLAGS` 传了 |
+| 公证日志：`Sparkle.framework/.../Autoupdate` 或 `Updater.app` 不是 Developer ID 签名 / 缺时间戳 | SPM 里 Sparkle 的这些嵌套组件是官方 **ad-hoc** 签名，Xcode 只重签 `Sparkle` 本体。`package-dmg.sh` 现在会在构建后由内到外显式重签（Autoupdate → Updater.app → XPC → framework → App） |
+| 公证日志：`The executable requests the com.apple.security.get-task-allow entitlement` | Xcode 默认注入调试用 entitlement。构建参数加了 `CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO`，并去掉主 App 的 entitlements 重签 |
 | 只签名不 staple | 离线用户首次打开仍会被拦；脚本对 `.app` 和 `.dmg` 都 `stapler staple` 并 `validate` |
 | `.p8` 泄露 | 只能下载一次；只放 GitHub Secrets，不要进仓库 |
 | 证书被 revoke | 所有用它签过的版本**新装/首次校验**都会失败，用户已装的可继续跑，但升级要换新证书 |
