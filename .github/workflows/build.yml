@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 解析 SPM 依赖
+        run: |
+          xcodebuild -project smart-close/SmartClose.xcodeproj \
+            -scheme SmartClose -resolvePackageDependencies
+
+      - name: 构建（不签名）
+        run: |
+          set -o pipefail
+          xcodebuild -project smart-close/SmartClose.xcodeproj \
+            -scheme SmartClose \
+            -configuration Release \
+            -derivedDataPath smart-close/build \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: 校验产物
+        run: |
+          APP="smart-close/build/Build/Products/Release/智能退出.app"
+          test -d "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$APP/Contents/Info.plist"
+          lipo -archs "$APP/Contents/MacOS/智能退出"
+          test -d "$APP/Contents/Frameworks/Sparkle.framework" && echo "Sparkle 已嵌入"
+
+      - name: Swift 规则测试
+        run: |
+          mkdir -p smart-close/build/Tests
+          swiftc smart-close/SmartClose/RuleStore.swift smart-close/Tests/main.swift \
+            -o smart-close/build/Tests/smart-close-rules-test
+          ./smart-close/build/Tests/smart-close-rules-test && echo "规则测试通过"
+
+      - name: appcast 单测
+        run: python3 scripts/test_make_appcast.py

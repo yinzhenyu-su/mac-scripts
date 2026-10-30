@@ -124,3 +124,52 @@ export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 CI 只是构建产物，回滚 = 删掉/覆盖 Release 里的 DMG，或把 tag 指回旧提交重新发版。
 本地 `package-dmg.sh` 不设签名相关环境变量时与旧行为完全一致。
+
+---
+
+## 六、Sparkle 自动更新（appcast）
+
+自动更新走 Sparkle 2，需要在 CI 里多做两件事：给 DMG 生成 EdDSA 签名、更新并提交 `appcast.xml`。
+
+### 6.1 生成密钥（一次性，在你 Mac 上）
+
+```bash
+curl -L -o /tmp/sparkle.tar.xz https://github.com/sparkle-project/Sparkle/releases/download/2.6.4/Sparkle-2.6.4.tar.xz
+tar -xf /tmp/sparkle.tar.xz -C /tmp
+/tmp/bin/generate_keys                     # 输出公钥 → 填进 Info.plist 的 SUPublicEDKey
+/tmp/bin/generate_keys -x ~/sparkle-private.key   # 导出私钥文本 → 只放进 GitHub secret
+gh secret set SPARKLE_ED_PRIVATE_KEY --repo yinzhenyu-su/mac-scripts < ~/sparkle-private.key
+```
+
+- 公钥可以公开；**私钥丢了就再也发不出能被老版本接受的新版本**，务必备份（密码管理器）
+- `.key` 是文本文件，`gh secret set < 文件` 直接把内容存成 secret
+
+### 6.2 CI 里发生什么
+
+1. 下载 Sparkle 工具（版本写死在 workflow 里）
+2. `sign_update --ed-key-file -` 从 `SPARKLE_ED_PRIVATE_KEY` 读私钥，对 DMG 签名
+3. 从刚创建的 Release 取 body 当更新日志
+4. `scripts/make-appcast.py` 合并生成 `appcast.xml`（保留最近 10 条）
+5. 提交回 `master`（bot commit）
+
+> **顺序很重要**：先上传 DMG 到 Release，再提交 appcast；反过来用户会拿到 404 的下载链接。
+
+### 6.3 客户端配置（Info.plist）
+
+| Key | 值 |
+|---|---|
+| `SUFeedURL` | `https://raw.githubusercontent.com/yinzhenyu-su/mac-scripts/master/appcast.xml` |
+| `SUPublicEDKey` | `generate_keys` 输出的公钥 |
+| `SUEnableAutomaticChecks` | `YES` |
+| `SUScheduledCheckInterval` | `86400` |
+| `SUAllowsAutomaticUpdates` | `NO`（先让用户点安装） |
+
+> `SUFeedURL` 会被**固化进已发布的 App**：以后若改默认分支名，老版本就会 404。想彻底避免，改用 GitHub Pages 的 `https://<user>.github.io/mac-scripts/appcast.xml`（URL 不含分支名）。
+
+### 6.4 手动验证
+
+```bash
+# 校验 appcast 里的签名与 DMG 是否匹配
+echo "$SPARKLE_ED_PRIVATE_KEY" | /tmp/bin/sign_update --ed-key-file - SmartClose-v1.3.2.dmg
+# 对比输出的 edSignature 与 appcast.xml 中的值
+```
