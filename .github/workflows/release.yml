@@ -63,6 +63,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
+          UNIVERSAL: "1"
         run: ./smart-close/package-dmg.sh "$RELEASE_TAG" "$BUILD_NUMBER"
 
       # 4) Gatekeeper / 公证校验：不通过就让构建失败，别发出坏包

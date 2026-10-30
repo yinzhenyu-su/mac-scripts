@@ -14,6 +14,8 @@ DMG_PATH="$BUILD_DIR/$APP_NAME.dmg"
 SIGN_IDENTITY="${SIGN_IDENTITY:-}"
 TEAM_ID="${TEAM_ID:-}"
 NOTARIZE="${NOTARIZE:-0}"
+# UNIVERSAL=1 → 同时编译 arm64 与 x86_64（分发用；本地开发不设，编译更快）
+UNIVERSAL="${UNIVERSAL:-0}"
 
 NOTARY_ARGS=()
 
@@ -23,6 +25,10 @@ BUILD_ARGS=(
   -configuration Release
   -derivedDataPath "$BUILD_DIR"
 )
+
+if [[ "$UNIVERSAL" == "1" ]]; then
+  BUILD_ARGS+=("ARCHS=arm64 x86_64" "ONLY_ACTIVE_ARCH=NO")
+fi
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
   echo "签名身份：$SIGN_IDENTITY"
@@ -73,6 +79,16 @@ if [[ $# -ne 0 ]]; then
     exit 1
   fi
   echo "应用版本已校验：$ACTUAL_VERSION ($ACTUAL_BUILD)"
+fi
+
+if [[ "$UNIVERSAL" == "1" ]]; then
+  EXEC_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Contents/Info.plist")"
+  ARCHS_FOUND="$(lipo -archs "$APP_PATH/Contents/MacOS/$EXEC_NAME")"
+  if [[ "$ARCHS_FOUND" != *arm64* || "$ARCHS_FOUND" != *x86_64* ]]; then
+    echo "通用包构建失败：实际只有 $ARCHS_FOUND" >&2
+    exit 1
+  fi
+  echo "架构：$ARCHS_FOUND"
 fi
 
 # ---- 签名与公证（.app）----

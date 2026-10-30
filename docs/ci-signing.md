@@ -115,7 +115,7 @@ export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 | 一年到期 | 证书 1 年，到期前重新生成/续费，否则 release 构建会失败 |
 | **TCC 权限会失效** | 从 ad-hoc 换成 Developer ID 后签名变了，**辅助功能/输入监控等授权需要用户重新授予**（一次性）。Release notes 里要写清楚 |
 | 构建号 | CI 用 `github.run_number`，天然递增；不要手动改回小的值 |
-| Intel / Apple Silicon | 默认构建当前架构；要通用包加 `ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO` |
+| Intel / Apple Silicon | **CI 已默认编译通用包**（`UNIVERSAL=1` → `ARCHS="arm64 x86_64"`），并在构建后 `lipo -archs` 断言两个架构都在；本地不设 `UNIVERSAL` 时只编当前架构 |
 | 发布包校验 | workflow 用 `spctl -a -vvv -t exec` + `stapler validate` 双重校验，任一失败即中止（不会发出坏包） |
 
 ---
