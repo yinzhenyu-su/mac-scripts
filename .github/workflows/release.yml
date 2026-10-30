@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-26
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 1) 导入 Developer ID Application 证书到临时钥匙串
       #    需要的 Secrets：MACOS_CERT_P12（base64 的 .p12）、MACOS_CERT_PASSWORD、KEYCHAIN_PASSWORD
