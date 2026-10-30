@@ -12,16 +12,72 @@ jobs:
   release:
     runs-on: macos-26
     steps:
-      - name: Check out source
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Build DMG
+      # 1) 导入 Developer ID Application 证书到临时钥匙串
+      #    需要的 Secrets：MACOS_CERT_P12（base64 的 .p12）、MACOS_CERT_PASSWORD、KEYCHAIN_PASSWORD
+      - name: 导入签名证书
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          printf '%s' "$CERT_P12" > "$RUNNER_TEMP/cert.p12.b64"
+          openssl base64 -d -in "$RUNNER_TEMP/cert.p12.b64" -out "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" -P "$CERT_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          # 没有这一步，codesign 会报 "User interaction is not allowed"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/cert.p12.b64"
+
+      # 2) 准备公证用的 App Store Connect API Key（.p8）
+      #    Secrets：ASC_KEY_P8（base64 的 .p8）、ASC_KEY_ID、ASC_ISSUER_ID
+      - name: 准备公证密钥
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          set -euo pipefail
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$ASC_KEY_P8" | openssl base64 -d -out "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          {
+            echo "ASC_KEY_PATH=$KEY_PATH"
+            echo "ASC_KEY_ID=${{ secrets.ASC_KEY_ID }}"
+            echo "ASC_ISSUER_ID=${{ secrets.ASC_ISSUER_ID }}"
+            echo "SIGN_IDENTITY=${{ secrets.SIGN_IDENTITY }}"
+            echo "TEAM_ID=${{ secrets.TEAM_ID }}"
+            echo "NOTARIZE=1"
+          } >> "$GITHUB_ENV"
+
+      # 3) 构建 + 签名 + 公证 + staple（脚本里 SIGN_IDENTITY/NOTARIZE 驱动）
+      - name: 构建并签名公证
         env:
           RELEASE_TAG: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
         run: ./smart-close/package-dmg.sh "$RELEASE_TAG" "$BUILD_NUMBER"
 
-      - name: Create or update GitHub Release
+      # 4) Gatekeeper / 公证校验：不通过就让构建失败，别发出坏包
+      - name: 校验签名与公证
+        run: |
+          set -euo pipefail
+          APP="smart-close/build/Build/Products/Release/智能退出.app"
+          DMG="smart-close/build/智能退出.dmg"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          spctl -a -vvv -t exec "$APP"
+          xcrun stapler validate "$APP"
+          xcrun stapler validate "$DMG"
+          hdiutil verify "$DMG"
+
+      - name: 发布到 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
@@ -36,3 +92,7 @@ jobs:
               --title "智能退出 $TAG_NAME" \
               --generate-notes
           fi
+
+      - name: 清理钥匙串
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
