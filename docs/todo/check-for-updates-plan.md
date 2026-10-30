@@ -110,7 +110,7 @@ private let updaterController = SPUStandardUpdaterController(
 
 | Key | 值 |
 |---|---|
-| `SUFeedURL` | `https://raw.githubusercontent.com/yinzhenyu-su/mac-scripts/main/appcast.xml` |
+| `SUFeedURL` | `https://raw.githubusercontent.com/yinzhenyu-su/mac-scripts/master/appcast.xml` |
 | `SUPublicEDKey` | `generate_keys` 输出的公钥（base64，32 字节） |
 | `SUEnableAutomaticChecks` | `YES` |
 | `SUScheduledCheckInterval` | `86400` |
