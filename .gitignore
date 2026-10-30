@@ -1,4 +1,6 @@
-.DS_Store
 .claude/settings.local.json
+.DS_Store
 .gemini-clipboard
+*.pyc
+__pycache__/
 smart-close/build/

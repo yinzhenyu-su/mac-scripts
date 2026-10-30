@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import ServiceManagement
+import Sparkle
 import SwiftUI
 
 @main
@@ -19,6 +20,8 @@ struct SmartCloseMain {
 final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let monitor = CloseMonitor()
     private let store = RuleStore()
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
@@ -272,14 +275,15 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
     @objc private func showAbout() {
         if aboutWindow == nil {
             let window = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 440, height: 460),
+                contentRect: NSRect(x: 0, y: 0, width: 440, height: 520),
                 styleMask: [.titled, .closable],
                 backing: .buffered,
                 defer: false
             )
             window.title = "关于智能退出"
             window.isReleasedWhenClosed = false
-            window.contentView = NSHostingView(rootView: AboutView())
+            window.contentView = NSHostingView(
+                rootView: AboutView(updaterController: updaterController))
             window.center()
             aboutWindow = window
         }
@@ -301,7 +305,15 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
 }
 
 private struct AboutView: View {
+    let updaterController: SPUStandardUpdaterController
     @State private var iconRefreshID = 0
+    @State private var autoCheckUpdates: Bool
+
+    init(updaterController: SPUStandardUpdaterController) {
+        self.updaterController = updaterController
+        _autoCheckUpdates = State(
+            initialValue: updaterController.updater.automaticallyChecksForUpdates)
+    }
 
     private var version: String {
         let info = Bundle.main.infoDictionary ?? [:]
@@ -317,6 +329,21 @@ private struct AboutView: View {
                     .frame(width: 80, height: 80)
                 Text("智能退出").font(.title2.bold())
                 Text(version).font(.callout).foregroundStyle(.secondary)
+            }
+
+            VStack(spacing: 10) {
+                Button("检查更新") {
+                    updaterController.checkForUpdates(nil)
+                }
+                .controlSize(.small)
+
+                Toggle("自动检查更新", isOn: $autoCheckUpdates)
+                    .toggleStyle(.checkbox)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .onChange(of: autoCheckUpdates) { newValue in
+                        updaterController.updater.automaticallyChecksForUpdates = newValue
+                    }
             }
 
             VStack(alignment: .leading, spacing: 16) {
@@ -346,7 +373,7 @@ private struct AboutView: View {
                 .font(.callout)
         }
         .padding(28)
-        .frame(width: 440, height: 460)
+        .frame(width: 440, height: 520)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             iconRefreshID += 1
         }
