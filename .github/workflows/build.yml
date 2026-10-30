@@ -11,7 +11,7 @@ jobs:
     runs-on: macos-26
     steps:
       - name: 检出代码
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: 解析 SPM 依赖
         run: |
