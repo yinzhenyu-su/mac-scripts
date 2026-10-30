@@ -108,6 +108,7 @@ export ASC_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 | 坑 | 说明 |
 |---|---|
 | `User interaction is not allowed` | 漏了 `security set-key-partition-list`（workflow 里已有） |
+| `security import` 报 `SecKeychainItemImport: One or more parameters passed to a function were not valid.` | 解码后的 `.p12` 是 **0 字节**。secret 里是 `openssl base64 -A` 生成的**单行** base64，而 `openssl base64 -d` 按 1024 字符行缓冲，遇到超长单行会**静默输出 0 字节且 exit 0**。workflow 已改成 `openssl base64 -d -A`（等价可选 `base64 --decode`）；手动复现时别漏 `-A` |
 | 公证报 `Invalid` / `signature is invalid` | 必须有 **Hardened Runtime**（`--options runtime`）和 **`--timestamp`**；脚本里用 `OTHER_CODE_SIGN_FLAGS` 传了 |
 | 只签名不 staple | 离线用户首次打开仍会被拦；脚本对 `.app` 和 `.dmg` 都 `stapler staple` 并 `validate` |
 | `.p8` 泄露 | 只能下载一次；只放 GitHub Secrets，不要进仓库 |

@@ -26,7 +26,14 @@ jobs:
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
           printf '%s' "$CERT_P12" > "$RUNNER_TEMP/cert.p12.b64"
-          openssl base64 -d -in "$RUNNER_TEMP/cert.p12.b64" -out "$RUNNER_TEMP/cert.p12"
+          # -A = 输入是单行（无换行）base64。少了它，openssl 的 base64 解码器按行缓冲，
+          # 遇到 >1024 字符的单行会静默输出 0 字节（exit 0），security import 报
+          # "One or more parameters passed to a function were not valid."
+          openssl base64 -d -A -in "$RUNNER_TEMP/cert.p12.b64" -out "$RUNNER_TEMP/cert.p12"
+          if [ ! -s "$RUNNER_TEMP/cert.p12" ]; then
+            echo "MACOS_CERT_P12 解码后为空：secret 不是合法 base64，或值为空" >&2
+            exit 1
+          fi
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 3600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
@@ -47,7 +54,11 @@ jobs:
         run: |
           set -euo pipefail
           KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
-          printf '%s' "$ASC_KEY_P8" | openssl base64 -d -out "$KEY_PATH"
+          printf '%s' "$ASC_KEY_P8" | openssl base64 -d -A -out "$KEY_PATH"
+          if [ ! -s "$KEY_PATH" ]; then
+            echo "ASC_KEY_P8 解码后为空：secret 不是合法 base64，或值为空" >&2
+            exit 1
+          fi
           chmod 600 "$KEY_PATH"
           {
             echo "ASC_KEY_PATH=$KEY_PATH"
