@@ -37,6 +37,11 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$APP/Contents/Info.plist"
           lipo -archs "$APP/Contents/MacOS/智能退出"
           test -d "$APP/Contents/Frameworks/Sparkle.framework" && echo "Sparkle 已嵌入"
+          # Sparkle 是 @rpath 动态库，缺少这条 rpath 时编译、签名、公证都能过，
+          # 但用户装完一启动就 dyld: Library not loaded。必须卡在这里。
+          otool -l "$APP/Contents/MacOS/智能退出" | grep -q "@executable_path/../Frameworks" \
+            || { echo "✗ 缺少 @executable_path/../Frameworks rpath，安装后会启动崩溃" >&2; exit 1; }
+          echo "rpath 校验通过"
 
       - name: Swift 规则测试
         run: |
