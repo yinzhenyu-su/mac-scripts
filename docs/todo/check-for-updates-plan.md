@@ -1,224 +1,205 @@
-# 关于页「检查更新」需求与方案
+# 关于页「检查更新」需求与方案（v2：Sparkle 自动下载安装）
 
 > 状态：**待批准**（批准后再动代码）
-> 涉及文件：`smart-close/SmartClose/SmartCloseApp.swift`（AboutView）、新增 `smart-close/SmartClose/UpdateChecker.swift`、`smart-close/Tests/`
+> v2 变更：用户确认需要「下载并**更新**」——应用内完成下载、安装、重启，因此不再采用 v1 的「提示 + 跳转浏览器」，改用 **Sparkle 2**。
 
 ## 1. 背景与现状
 
 | 项 | 现状 |
 |---|---|
-| 分发渠道 | GitHub Releases，tag `vX.Y.Z`，附件 `SmartClose-vX.Y.Z.dmg`（CI 已签名 + 公证） |
-| 版本号来源 | `Info.plist` 的 `CFBundleShortVersionString` / `CFBundleVersion` ← `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`；发版时由 tag 与 `run_number` 注入 |
-| 关于页 | `SmartCloseApp.swift` 里的 `AboutView`（SwiftUI，440×460，NSWindow 承载）：App 图标、名称、`版本 x.y.z（build）`、功能说明、致谢、仓库链接 |
-| 仓库可见性 | public → 读 Releases API **不需要 token**，App 内不存任何密钥 |
-| 沙盒 | `ENABLE_APP_SANDBOX = NO` → 发网络请求**不需要** entitlement |
-| 最低系统 | macOS 13（可用 async/await、`URLSession.data(for:)`） |
-| 现有测试方式 | `swiftc SmartClose/RuleStore.swift Tests/main.swift -o build/Tests/...`，纯 `precondition` 脚本，无 XCTest target |
+| 分发渠道 | GitHub Releases，tag `vX.Y.Z`，附件 `SmartClose-vX.Y.Z.dmg`（CI 已 Developer ID 签名 + 公证） |
+| 版本号 | `Info.plist` ← `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`（CI 用 tag + run_number 注入） |
+| 关于页 | `AboutView`（SwiftUI，440×460 NSWindow）：图标 / 名称 / `版本 x.y.z（build）` / 说明 / 致谢 / 仓库链接 |
+| 设置窗口 | 只有「例外应用」列表，没有通用设置分区 |
+| 沙盒 | `ENABLE_APP_SANDBOX = NO`（Sparkle 在非沙盒下工作最省事） |
+| 测试方式 | `swiftc` + `precondition` 脚本，无 XCTest target |
+| 仓库 | public → appcast 与 DMG 都可匿名下载 |
 
 ## 2. 目标与非目标
 
 **目标**
 
-1. 用户能在关于页**一键**知道当前是否最新版，并一步拿到新版。
-2. 有新版本时**不打扰**：不弹模态、不自动下载，只是把入口亮出来。
-3. 一期**零第三方依赖**、可离线降级、失败不崩溃。
+1. 关于页能发现新版本，并在**应用内完成下载、安装、自动重启**。
+2. 安装前能看到**更新日志**（版本、日期、变更条目）。
+3. 「自动检查更新」可控（默认开），后台检查不打扰。
 
-**一期不做（明确划出去）**
+**不做**
 
-- 应用内自动下载 / 替换 / 重启（Sparkle 的能力）
-- 增量更新、灰度发布、Beta 通道
-- 使用统计、埋点
-- 自动检查之外的后台常驻轮询
+- 增量（delta）更新：Sparkle 支持，但需要额外的 delta 打包与托管，一期不做
+- Beta / 预发布通道
+- 自研下载/替换逻辑（这正是 Sparkle 存在的理由）
 
-## 3. 路线选择
+## 3. 方案对比：为什么是 Sparkle 2
 
-| | 方案 A：检查 + 提示 + 跳转（推荐一期） | 方案 B：Sparkle 2 全自动更新（二期可选） |
-|---|---|---|
-| 体验 | 提示有新版本 → 点「下载」到 Release 页/DMG；手动拖进「应用程序」 | 应用内下载、校验、替换、重启，全程一键 |
-| 复杂度 | 低：一个 API 调用 + 状态机 + UI | 高：appcast.xml、EdDSA 私钥、CI 生成 appcast、Sparkle XPC 签名、版本渠道 |
-| 维护 | 无额外依赖 | 跟随 Sparkle 版本升级；密钥管理 |
-| 与现有流程 | 完全兼容（CI 产物不变） | 需要在发版流程里多生成/上传 appcast，并保证 appcast 与 DMG 同源 |
-| 失败面 | 只读操作，失败影响小 | 涉及替换自身，需处理 translocated、权限、回滚 |
+| 方案 | 结论 |
+|---|---|
+| 自研「下载 DMG → 挂载 → 替换 /Applications → 重启」 | ✗ 要自己处理签名+公证校验、translocated 启动、写权限、原子替换与回滚、下载中断、重启时机——每个都是线上事故源 |
+| **Sparkle 2（SPM 依赖）** | ✓ 业界标准，内置 EdDSA 签名校验、下载、解压、替换、重启、「跳过此版本」、自动检查调度、更新日志窗口 |
+| 只提示 + 打开浏览器（v1） | ✗ 用户明确要「下载并更新」 |
 
-**建议**：一期做 A（先把「能发现新版」跑通，成本低、可逆）；如果之后觉得手动装太烦，再引入 B，一期 UI 的「下载」按钮可直接换成 Sparkle 的更新入口，不需要返工。
+**必须接受的代价**
+
+- 新增一个 SPM 依赖（Sparkle 2.x），体积 +1–2 MB
+- 需要一对 **EdDSA 密钥**：公钥进 `Info.plist`，私钥只放 CI secret
+- 每次发版 CI 要多产出并发布 `appcast.xml`；**appcast 没更新 = 用户收不到更新**
 
 ## 4. 功能需求
 
 ### FR-1 手动检查（P0）
-- 关于页版本行下方新增按钮「检查更新」。
-- 点击 → 立即进入检查中状态（按钮禁用 + 小 spinner），同一时刻只允许一个请求。
-- 检查中再次点击无效（不排队、不重复请求）。
+- 版本号下方新增「检查更新」按钮（方案 A 布局）。
+- 点击 → `SPUStandardUpdaterController.checkForUpdates(nil)`。
+- 进行中的反馈由 Sparkle 自己提供；不重复触发（Sparkle 内部串行）。
 
-### FR-2 结果展示（P0）
-在按钮旁/下方用一行文字展示结果，三种终态：
+### FR-2 下载与安装（P0）
+- 发现新版：Sparkle 标准窗口展示版本号、更新日志、`安装更新` / `稍后` / `跳过此版本`。
+- 点安装：下载 DMG → EdDSA 校验 → 解包 → 替换当前 App → 重启。
+- 失败（网络/签名/权限）由 Sparkle 提示，我们不自研兜底。
 
-| 结果 | 文案 | 附加操作 |
-|---|---|---|
-| 已是最新 | `已是最新版本` | 无 |
-| 有新版本 | `发现新版本 1.3.0` | 主按钮「下载」+ 次按钮「更新说明」 |
-| 失败 | `检查失败：<原因>` | 「重试」 |
+### FR-3 更新日志（P0）
+- 来源：`appcast.xml` 中该版本的 `<description>`（HTML，CI 从 Release body 生成）。
+- 展示：Sparkle 更新窗口内的滚动区域（自带）。
+- 附「在浏览器查看完整说明」→ Release 页面。
 
-失败原因细分（不显示技术栈信息）：
-- 无网络 / 无法连接 → `无法连接更新服务器`
-- 超时（>10s）→ `连接超时，请稍后重试`
-- 403 → `请求过于频繁，请稍后再试`
-- 404 / 仓库无 Release → `暂无发布版本`
-- 解析失败 / tag 不是 `vX.Y.Z` → `暂时无法判断版本`
+### FR-4 自动检查（P0，可关）
+- 关于页底部一行 `[✓] 自动检查更新`，绑定 `updater.automaticallyChecksForUpdates`。
+- 调度交给 Sparkle：`SUEnableAutomaticChecks=YES`、`SUScheduledCheckInterval=86400`。
+- **不再自研 24h 节流逻辑**。
 
-### FR-3 版本比较（P0）
-- 只比较 `major.minor.patch` 三段数字，**数值比较**（`1.2.10 > 1.2.9`）。
-- 容忍 tag 前缀 `v`；`v1.3.0` 与 `1.3.0` 等价。
-- 本地版本 **高于** 远端（开发版）→ 视为「已是最新」，不提示降级。
-- `prerelease` / `draft` 的 release **忽略**（pull `/releases/latest` 本身已排除这两类，但解析时仍显式过滤一次）。
-- tag 不符合 `vX.Y.Z`（如 `v1.3.0-rc1`、`nightly`）→ 该 release 视为不可比较，走「暂时无法判断版本」。
+### FR-5 跳过此版本（P0，Sparkle 自带）
+- 点了之后不再提示该版本；发更高版本仍提示。
 
-### FR-4 下载入口（P0）
-- 主按钮「下载」：打开该 release 里**文件名以 `.dmg` 结尾**的第一个资产的 `browser_download_url`；没有 dmg 资产时退回 release 的 `html_url`。
-- 次按钮「更新说明」：打开 `html_url`。
-- 都用 `NSWorkspace.shared.open(_:)`，不在 App 内渲染网页。
+### FR-6 错误与边界（P0）
+- 无网络 / 下载失败 / 签名校验失败 / 替换失败 → Sparkle 标准 UI。
+- appcast 404 或格式错误 → Sparkle 静默失败，不影响 App 使用。
 
-### FR-5 检查失败处理（P0）
-- 任何失败都**不弹模态框**，只在关于页显示一行文字。
-- 失败不写入「上次检查时间」，允许用户立即重试（手动重试间隔 ≥ 5s，防连点）。
-- 自动检查失败**完全静默**（不提示、不写菜单标记）。
-
-### FR-6 自动检查（P1，可关）
-- 默认**开启**，用户可在关于页用复选框「自动检查更新」关闭。
-- 触发时机：App 启动后 **15s** 检查一次；之后每次启动时若「距上次检查 ≥ 24h」再检查（不做常驻定时器，省电）。
-- 自动检查发现新版本时：只在关于页展示状态 + （可选，见 FR-8）菜单提示；**不弹窗**。
-- 自动检查频率上限：24h 一次（以 UserDefaults 里 `lastCheckAt` 为准）。
-
-### FR-7 跳过此版本（P1）
-- 发现新版本时提供「跳过此版本」。
-- 记录 `lastSkippedVersion`：自动检查不再提示该版本；**手动检查仍然提示**（用户主动问就得答）。
-- 发布了更新的版本（大于被跳过的版本）时，重新提示。
-
-### FR-8 菜单提示（P2，可选）
-- 有新版本时，状态栏菜单里「关于智能退出」右侧显示 `1.3.0` 小字（或标题改为「关于智能退出（有新版本）」）。
-- 不做图标角标/动画（LSUIElement 无 Dock 图标，容易过度打扰）。
-
-### FR-9 隐私（P0）
-- 只向 `api.github.com` 发 `GET /repos/yinzhenyu-su/mac-scripts/releases/latest`，不带任何用户标识、设备信息、使用数据。
-- User-Agent 只含 `SmartClose/<version>`（GitHub API 必需）。
-- 用户关闭自动检查后，只有点按钮才会联网。
-
-### FR-10 布局（P0）
-- 关于窗口现为 440×460，空间紧张。方案：在版本行下方插入一行 `[检查更新按钮] [状态文字]`，不改变窗口尺寸，长文案自动换行/截断。
-- 如加「自动检查更新」复选框，放在「项目仓库 ↗」上方，与现有内容同宽。
-
-## 5. 交互状态机
+### FR-7 布局（P0，方案 A）
+- 窗口 440×460 → **440×520**。
+- 版本号下方放「检查更新」；「已是最新」类状态文案交给 Sparkle，不在关于页重复。
 
 ```
-idle ──点击/自动触发──> checking ──成功且远端更新──> updateAvailable(release)
-                          │                     └── 远端同版/更低 ──> upToDate
-                          └──失败──> failed(reason) ──重试──> checking
+[图标]
+智能退出
+版本 1.3.1（6）
+[ 检查更新 ]
+（说明三行）
+──────
+致谢名单
+@hahahhqyou
+──────
+[✓] 自动检查更新            项目仓库 ↗
 ```
 
-- `updateAvailable` 下点「下载」不改变状态（只打开浏览器）。
-- `upToDate` / `failed` 下按钮文案回到「检查更新」。
+### FR-8 隐私（P0）
+- 只请求 appcast URL，不带用户标识。
+- 关闭自动检查后，只有点按钮才联网。
 
-## 6. 技术方案
+## 5. 技术方案
 
-**接口**
+### 5.1 集成
 
-```
-GET https://api.github.com/repos/yinzhenyu-su/mac-scripts/releases/latest
-Accept: application/vnd.github+json
-X-GitHub-Api-Version: 2022-11-28
-User-Agent: SmartClose/<CFBundleShortVersionString>
-```
-
-超时 10s，不重试，`URLSession.shared`（或注入的 session，便于测试）。仅接受 `https`。
-
-**解析模型（只取需要的字段）**
+- SPM：`https://github.com/sparkle-project/Sparkle`，major `2`
+- Target `SmartClose` 增加 `Sparkle`
+- `SmartCloseApp.swift` 持有控制器：
 
 ```swift
-struct ReleaseInfo: Decodable, Equatable {
-    let tagName: String
-    let htmlURL: URL
-    let body: String?
-    let publishedAt: Date?
-    let prerelease: Bool
-    let draft: Bool
-    let assets: [Asset]        // name, browserDownloadURL
-}
+private let updaterController = SPUStandardUpdaterController(
+    startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 ```
 
-**版本模型**
+### 5.2 Info.plist 新增
 
-```swift
-struct AppVersion: Comparable, Equatable {
-    let major: Int, minor: Int, patch: Int
-    init?(_ raw: String)       // 允许 "v1.2.3" / "1.2.3"；其余返回 nil
-}
-```
-
-**结果类型**
-
-```swift
-enum UpdateCheckResult: Equatable {
-    case upToDate(current: AppVersion, latest: AppVersion)
-    case updateAvailable(ReleaseInfo, latest: AppVersion)
-    case failed(UpdateCheckError)   // .offline/.timeout/.rateLimited/.noRelease/.invalidTag/.badResponse
-}
-```
-
-**代码结构**
-
-| 文件 | 内容 | 依赖 |
-|---|---|---|
-| `SmartClose/UpdateChecker.swift` | `AppVersion`、`ReleaseInfo`、`UpdateCheckResult`、`UpdateChecker`（注入 `URLSession`） | 仅 Foundation（可被 Tests 单独编译） |
-| `SmartClose/SmartCloseApp.swift` | `AboutView` 接入状态、按钮、复选框；`UpdatePromptModel` 用 `@State` + `Task` | SwiftUI / AppKit |
-
-不引入第三方依赖；不加 entitlement；不改 Info.plist（不需要 ATS 例外，GitHub 是 https）。
-
-## 7. 本地存储（UserDefaults）
-
-| Key | 类型 | 默认 | 用途 |
-|---|---|---|---|
-| `autoCheckUpdates` | Bool | `true` | 自动检查开关 |
-| `lastCheckAt` | Date | 无 | 自动检查节流（24h） |
-| `lastSkippedVersion` | String | 无 | 「跳过此版本」 |
-
-## 8. 边界情况与风险
-
-| 情况 | 处理 |
+| Key | 值 |
 |---|---|
-| GitHub 匿名限流（60 次/小时/IP） | 403 → 「请求过于频繁」；自动检查静默失败，下次启动再试 |
-| 公司代理 / 中间人证书拦截 | 请求失败 → 显示「无法连接更新服务器」，不弹窗 |
-| Release notes 很长或含 Markdown | 一期不在 App 内渲染，只提供「更新说明」跳浏览器 |
-| 从 DMG 直接运行（translocated） | 一期只读，无影响；未来 Sparkle 需要先提示「拖入应用程序」 |
-| 用户长期不更新 | 每次启动最多提示一次（24h 节流），不做弹窗轰炸 |
-| 版本号回退（发错版本） | 本地更高视为最新，不提示降级 |
-| 未来引入 Sparkle | 需 appcast + EdDSA 密钥 + CI 生成；一期 UI 可直接复用 |
+| `SUFeedURL` | `https://raw.githubusercontent.com/yinzhenyu-su/mac-scripts/main/appcast.xml` |
+| `SUPublicEDKey` | `generate_keys` 输出的公钥（base64，32 字节） |
+| `SUEnableAutomaticChecks` | `YES` |
+| `SUScheduledCheckInterval` | `86400` |
+| `SUAllowsAutomaticUpdates` | `NO`（先让用户点安装，观察一阵再考虑放开） |
 
-## 9. 验收标准
+### 5.3 appcast.xml（CI 生成，提交回 main）
 
-1. 当前版本 = 最新版：点「检查更新」→ 显示「已是最新版本」，无报错。
-2. 远端发布更高版本：显示「发现新版本 x.y.z」+「下载」+「更新说明」；「下载」在浏览器打开 `.dmg` 链接。
-3. 断网：10s 内显示「无法连接更新服务器」，App 不崩溃、按钮可再次点击。
-4. 连续快速点击：只发一次请求。
-5. 「跳过此版本」后重启：自动检查不再提示该版本；手动检查仍提示。
-6. 关闭「自动检查更新」：启动后完全不发请求（可用 Charles/`nettop` 或日志确认）。
-7. 版本比较单测全绿（见 `docs/tests/check-for-updates-tests.md`）。
-8. 关于窗口布局在 440×460 下不裁切、不跳动。
-9. 签名/公证流程不受影响（不新增网络 entitlement、不加依赖）。
+```xml
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>智能退出</title>
+    <item>
+      <title>1.3.2</title>
+      <pubDate>…</pubDate>
+      <sparkle:version>7</sparkle:version>
+      <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[ <html>…Release body…</html> ]]></description>
+      <enclosure url="https://github.com/yinzhenyu-su/mac-scripts/releases/download/v1.3.2/SmartClose-v1.3.2.dmg"
+                 sparkle:edSignature="…" length="…" type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
+```
 
-## 10. 待决策（需要拍板）
+- 保留最近 10 个版本即可，避免无限增长。
+- `edSignature` 由 Sparkle 的 `sign_update` 用私钥对 DMG 生成。
+- **`sparkle:version` 必须递增**（Sparkle 以它判断新旧，不是 `shortVersionString`）。
+
+### 5.4 CI 改动（release.yml）
+
+现有「签名 + 公证 + 校验」之后追加：
+
+1. 把 `SPARKLE_ED_PRIVATE_KEY`（secret）写入临时文件
+2. `sign_update <dmg>` → 得到签名
+3. 运行 `scripts/make-appcast.py` → 合并生成 `appcast.xml`（保留历史条目）
+4. **先**上传 DMG 到 Release
+5. **再**提交 `appcast.xml` 回 `main`（bot commit）
+
+顺序很重要：appcast 先于 DMG 发布会让用户拿到 404。
+
+### 5.5 代码结构
+
+| 文件 | 内容 |
+|---|---|
+| `SmartClose/SmartCloseApp.swift` | 创建 `SPUStandardUpdaterController`；AboutView 按钮/复选框；窗口 460 → 520 |
+| `SmartClose/Info.plist` | 4 个 `SU*` key |
+| `SmartClose.xcodeproj/project.pbxproj` | Sparkle SPM 依赖 |
+| `scripts/make-appcast.py` | 生成/合并 appcast（纯 Python，可测） |
+| `.github/workflows/release.yml` | 签名 + 生成 + 提交 appcast |
+| `docs/ci-signing.md` | 补 Sparkle 密钥与 appcast 流程 |
+
+## 6. 边界与风险
+
+| 风险 | 处理 |
+|---|---|
+| EdDSA 私钥丢失 | 新版本无法签名 → 所有用户收不到更新。私钥备份到密码管理器，CI 只放 secret |
+| appcast 未更新/提交失败 | 用户看不到新版 → 把「appcast 已包含当前版本」纳入发布步骤，失败即报警 |
+| raw.githubusercontent 缓存约 5 分钟 | 可接受；介意就换 GitHub Pages |
+| 从 DMG 直接运行（translocated） | Sparkle 会提示先拖进「应用程序」 |
+| /Applications 无写权限 | Sparkle 走系统授权（弹管理员密码） |
+| 自动安装过于激进 | `SUAllowsAutomaticUpdates=NO`，先观察 |
+| 更新包未签名/未公证 | Sparkle 的 EdDSA 校验会失败 → CI 已保证签名+公证 |
+
+## 7. 验收标准
+
+1. 关于页出现「检查更新」按钮 + 「自动检查更新」复选框（默认勾选）。
+2. 有新版时点按钮 → Sparkle 窗口出现，含版本号、更新日志、安装/稍后/跳过。
+3. 点「安装更新」→ 下载 → 校验 → 替换 → 自动重启，重启后关于页版本号为新版。
+4. 更新日志与 GitHub Release body 一致。
+5. 取消勾选后重启 → 启动阶段无 appcast 请求。
+6. 断网检查 → 可关闭的错误提示，App 正常使用。
+7. 「跳过此版本」生效；更高版本重新提示。
+8. `spctl` / 公证校验 + Sparkle XPC services 签名全绿。
+9. `sign_update --verify` 能验证 appcast 里的签名。
+
+## 8. 待决策
 
 | 编号 | 问题 | 建议 |
 |---|---|---|
-| Q1 | 一期只做「检查 + 跳转下载」，还是一步到位上 Sparkle 自动更新？ | **A**：先做检查 + 跳转（可逆、成本低） |
-| Q2 | 自动检查默认开还是关？频率？ | **默认开**，启动后 15s 一次 + 每 24h 一次 |
-| Q3 | 有新版本时菜单里是否提示？ | **一期不做**（只改关于页），避免打扰 |
-| Q4 | 是否支持 Beta / 预发布通道？ | **不支持**，只认 `/releases/latest` |
-| Q5 | 关于窗口是否允许加高（如 460 → 520）以放更新说明？ | **不改高度**，更新说明跳浏览器 |
+| Q1 | appcast 托管：main + raw.githubusercontent / GitHub Pages / gh-pages 分支 | **main + raw**（最简单，5 分钟缓存可接受） |
+| Q2 | 允许后台静默安装？ | **先 NO**，让用户点安装 |
+| Q3 | 更新日志：Sparkle 自带窗口 / 自研 sheet | **Sparkle 自带**（少写代码、行为标准） |
+| Q4 | 保留「跳过此版本」？ | **保留**（自带，零成本） |
 
-## 11. 批准后的实施步骤
+## 9. 批准后的实施步骤
 
-1. 新增 `UpdateChecker.swift`（纯 Foundation）+ `Tests/update-checker-tests.swift`，先跑通单测。
-2. 接入 `AboutView`（按钮、状态、复选框、跳过）。
-3. 加自动检查节流逻辑（`lastCheckAt`）。
-4. 更新 `smart-close/README.md`（说明检查更新行为与隐私）。
-5. `swiftc` 单测 + `xcodebuild` 构建验证；打一个测试 tag 走一遍 CI（可选）。
-6. 通过后把本文件移到 `docs/done/`。
+1. 加 Sparkle SPM 依赖（Xcode 里点，或我改 `project.pbxproj`）
+2. 你在 Mac 上跑 Sparkle 的 `generate_keys` → 公钥发我（公开信息）；私钥导出后写进 GitHub secret `SPARKLE_ED_PRIVATE_KEY`
+3. 我实现：About 页 UI（方案 A）、窗口加高、Info.plist、`make-appcast.py`、CI 步骤、文档
+4. 打测试 tag 走一遍：Sparkle 窗口出现 → 安装 → 重启后版本正确
+5. 通过后本文件移到 `docs/done/`
