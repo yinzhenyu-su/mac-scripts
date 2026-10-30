@@ -93,6 +93,14 @@ if [[ "$UNIVERSAL" == "1" ]]; then
   echo "架构：$ARCHS_FOUND"
 fi
 
+# Sparkle 是 @rpath 动态库。缺了这条 rpath，编译/签名/公证全过，用户装完一启动就崩
+# （dyld: Library not loaded: @rpath/Sparkle.framework/...）。
+EXEC_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Contents/Info.plist")"
+if ! otool -l "$APP_PATH/Contents/MacOS/$EXEC_NAME" | grep -q "@executable_path/../Frameworks"; then
+  echo "缺少 @executable_path/../Frameworks rpath，安装后会启动崩溃" >&2
+  exit 1
+fi
+
 # ---- 公证辅助 ----
 # 提交并等待结果；失败时自动拉取 Apple 的公证日志，避免只看到 "Invalid" 干瞪眼。
 notarize() {
