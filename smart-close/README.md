@@ -35,7 +35,7 @@ git push origin v1.2.2
 ./package-dmg.sh v1.2.2 6
 ```
 
-当前 Release 产物未签名和公证；分发给用户时，首次打开可能需要按上面的说明移除隔离属性。
+打 tag 后 CI 会用 Developer ID 证书签名，并完成 Apple 公证（notarize + staple）：Release 里的 DMG 下载后**双击即可打开**，不需要再移除隔离属性（前提是仓库 Secrets 已按 [docs/ci-signing.md](../docs/ci-signing.md) 配好）。本地不设签名环境变量直接跑 `./package-dmg.sh` 时仍是 ad-hoc 签名，首次打开可能需要按上面的说明移除隔离属性。
 
 ```sh
 xcodebuild -project SmartClose.xcodeproj -scheme SmartClose -configuration Release -derivedDataPath build build
