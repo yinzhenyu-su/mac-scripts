@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>智能退出</title>
+    <item>
+      <title>1.3.2</title>
+      <pubDate>Fri, 30 Oct 2026 16:38:48 +0000</pubDate>
+      <sparkle:version>9</sparkle:version>
+      <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description>## What's Changed
+* ci(release): 用 Developer ID 签名并公证 DMG by @yinzhenyu-su in https://github.com/yinzhenyu-su/mac-scripts/pull/1
+* feat(updates): 关于页检查更新 + Sparkle 自动更新 by @yinzhenyu-su in https://github.com/yinzhenyu-su/mac-scripts/pull/2
+
+## New Contributors
+* @yinzhenyu-su made their first contribution in https://github.com/yinzhenyu-su/mac-scripts/pull/1
+
+**Full Changelog**: https://github.com/yinzhenyu-su/mac-scripts/compare/v1.3.1...v1.3.2
+</description>
+      <enclosure url="https://github.com/yinzhenyu-su/mac-scripts/releases/download/v1.3.2/SmartClose-v1.3.2.dmg" length="5421598" type="application/octet-stream" sparkle:edSignature="zkNcqSsaSrOcsobyPGwH3kXL7o64Y27Mhbip2/LFS6rMXjF8VRvcIqkIgdqblDydIdVr/x6HoPNqTYSslx6MDg==" />
+    </item>
   </channel>
 </rss>
