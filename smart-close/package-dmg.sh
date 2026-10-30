@@ -36,6 +36,8 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
     CODE_SIGN_STYLE=Manual
     "CODE_SIGN_IDENTITY=$SIGN_IDENTITY"
     ENABLE_HARDENED_RUNTIME=YES
+    # 不注入 com.apple.security.get-task-allow（调试用 entitlement，带了就过不了公证）
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO
     "OTHER_CODE_SIGN_FLAGS=--options runtime --timestamp"
   )
   if [[ -n "$TEAM_ID" ]]; then
@@ -91,8 +93,57 @@ if [[ "$UNIVERSAL" == "1" ]]; then
   echo "架构：$ARCHS_FOUND"
 fi
 
+# ---- 公证辅助 ----
+# 提交并等待结果；失败时自动拉取 Apple 的公证日志，避免只看到 "Invalid" 干瞪眼。
+notarize() {
+  local target="$1" out rc id
+  set +e
+  out="$(xcrun notarytool submit "$target" "${NOTARY_ARGS[@]}" --wait 2>&1)"
+  rc=$?
+  set -e
+  printf '%s\n' "$out"
+  id="$(printf '%s\n' "$out" | sed -n 's/^ *id: *//p' | head -1)"
+  if [[ $rc -ne 0 ]] || printf '%s' "$out" | grep -q 'status: Invalid'; then
+    echo "✗ 公证未通过，Apple 日志如下：" >&2
+    if [[ -n "$id" ]]; then
+      xcrun notarytool log "$id" "${NOTARY_ARGS[@]}" >&2 || true
+    fi
+    return 1
+  fi
+}
+
+# Sparkle 的 Autoupdate / Updater.app / XPC 在 SPM 产物里是 Sparkle 官方 ad-hoc 签名，
+# Xcode 只重签 Sparkle 本体，不会递归；公证要求每一层都是 Developer ID + 安全时间戳。
+# 所以这里由内到外显式重签一遍，最后再签主 App。
+sign_sparkle() {
+  local fw="$APP_PATH/Contents/Frameworks/Sparkle.framework"
+  [[ -d "$fw" ]] || return 0
+  local base="$fw/Versions/B"
+  local items=(
+    "$base/Updater.app/Contents/MacOS/Updater"
+    "$base/Updater.app"
+    "$base/XPCServices/Downloader.xpc"
+    "$base/XPCServices/Installer.xpc"
+    "$base/Autoupdate"
+    "$base/Sparkle"
+    "$base"
+    "$fw"
+  )
+  local item
+  for item in "${items[@]}"; do
+    [[ -e "$item" ]] || continue
+    codesign --force --timestamp --options runtime \
+      --preserve-metadata=entitlements,identifier \
+      --sign "$SIGN_IDENTITY" "$item"
+  done
+  echo "Sparkle 组件已重签"
+}
+
 # ---- 签名与公证（.app）----
 if [[ -n "$SIGN_IDENTITY" ]]; then
+  sign_sparkle
+  # 重签主 App（放在最后，哈希才与已重签的 Sparkle 一致）；不传 --entitlements = 清掉 get-task-allow
+  codesign --force --timestamp --options runtime --sign "$SIGN_IDENTITY" "$APP_PATH"
   codesign --verify --deep --strict --verbose=2 "$APP_PATH"
   echo "App 签名校验通过"
 
@@ -101,7 +152,7 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
     rm -f "$NOTARIZE_ZIP"
     ditto -c -k --keepParent "$APP_PATH" "$NOTARIZE_ZIP"
     echo "提交 App 公证（通常 1-5 分钟）…"
-    xcrun notarytool submit "$NOTARIZE_ZIP" "${NOTARY_ARGS[@]}" --wait
+    notarize "$NOTARIZE_ZIP"
     xcrun stapler staple "$APP_PATH"
     xcrun stapler validate "$APP_PATH"
     echo "App 已公证并 stapled"
@@ -132,7 +183,7 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
 
   if [[ "$NOTARIZE" == "1" ]]; then
     echo "提交 DMG 公证 …"
-    xcrun notarytool submit "$DMG_PATH" "${NOTARY_ARGS[@]}" --wait
+    notarize "$DMG_PATH"
     xcrun stapler staple "$DMG_PATH"
     xcrun stapler validate "$DMG_PATH"
     echo "DMG 已公证并 stapled"
