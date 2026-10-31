@@ -55,7 +55,7 @@ fi
 [[ "${COUNT:-0}" -gt 0 ]] || die "自 ${PREV:-首个版本} 以来没有新提交，没东西可发"
 
 if [[ -f "$NOTES" ]]; then
-  echo "  更新日志：$NOTES（已存在，保留你的内容）"
+  echo "  更新日志：${NOTES}（已存在，保留你的内容）"
 else
   mkdir -p release-notes
   {
@@ -71,12 +71,12 @@ else
     echo
     echo "- 直接点「安装更新」即可，无需手动操作"
   } > "$NOTES"
-  echo "  更新日志：$NOTES（已根据 git log 生成草稿）"
+  echo "  更新日志：${NOTES}（已根据 git log 生成草稿）"
 fi
 
 if [[ "$NO_EDIT" -eq 0 && "$DRY_RUN" -eq 0 && -t 0 ]]; then
   echo
-  echo "── 编辑 $NOTES（保存退出后继续，留空则取消）──────────────────"
+  echo "── 编辑 ${NOTES}（保存退出后继续，留空则取消）──────────────────"
   "${EDITOR:-vim}" "$NOTES"
 fi
 
@@ -91,8 +91,8 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
   exit 0
 fi
 
-read -r -p "确认提交并推送 $TAG？[y/N] " ANSWER
-[[ "$ANSWER" =~ ^[Yy]$ ]] || { echo "已取消（草稿保留在 $NOTES）"; exit 1; }
+read -r -p "确认提交并推送 ${TAG}？[y/N] " ANSWER
+[[ "$ANSWER" =~ ^[Yy]$ ]] || { echo "已取消（草稿保留在 ${NOTES}）"; exit 1; }
 
 git add "$NOTES"
 if git diff --staged --quiet; then
@@ -107,5 +107,5 @@ git push origin master
 git push origin "$TAG"
 
 echo
-echo "✔ 已推送 $TAG，CI 会自动构建、公证、部署到 app.bgm.fun"
+echo "✔ 已推送 ${TAG}，CI 会自动构建、公证、部署到 app.bgm.fun"
 echo "  进度：https://github.com/$(git remote get-url origin | sed -E 's#.*github\.com[:/]##; s#\.git$##')/actions"

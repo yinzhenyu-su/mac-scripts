@@ -11,7 +11,7 @@ while read -r _local_ref local_sha remote_ref _remote_sha; do
       # annotated tag 要剥到 commit 再看文件
       commit="$(git rev-parse -q --verify "${local_sha}^{commit}" 2>/dev/null || true)"
       if ! git cat-file -e "${commit}:release-notes/${tag}.md" 2>/dev/null; then
-        echo "✗ 拒绝推送 $tag：该提交里没有 release-notes/${tag}.md" >&2
+        echo "✗ 拒绝推送 ${tag}：该提交里没有 release-notes/${tag}.md" >&2
         echo "  更新日志会直接显示在用户的 Sparkle 更新弹窗里，不能空着。" >&2
         echo "  请用 ./scripts/release.sh $tag 重新走发版流程。" >&2
         exit 1
