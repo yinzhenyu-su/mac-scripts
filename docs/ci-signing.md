@@ -323,3 +323,71 @@ python3 scripts/make-appcast.py --appcast appcast.xml \
 ```
 
 签名和 length 必须与已发布 DMG 保持一致，否则 Sparkle 会拒绝安装。
+
+---
+
+# 七、发版流程（强制带更新日志）
+
+## 为什么需要约束
+
+更新日志会直接出现在用户的 Sparkle 更新弹窗里。如果忘了写，CI 只能拿提交标题凑数（`fix(appcast): …` 这种），用户看不懂。
+
+所以做了两层约束：
+
+| 层 | 机制 |
+|---|---|
+| 本地 | `.githooks/pre-push`：推送 `v*` tag 时，如果该提交里没有 `release-notes/<tag>.md`，**直接拒绝推送** |
+| CI | 缺文件时用 git log 兜底，并在 Actions 界面打一条 warning annotation |
+
+## 一次性启用钩子
+
+```bash
+git config core.hooksPath .githooks
+```
+
+> 每台克隆仓库的机器都要执行一次（hook 靠这个配置生效，不在 `.git/hooks` 里）。
+
+## 日常发版：一条命令
+
+```bash
+./scripts/release.sh v1.3.5
+```
+
+它会依次：
+
+1. 检查：在 master、工作区干净、tag 不存在、有新提交
+2. 用 `git log <上一个tag>..HEAD` 生成 `release-notes/v1.3.5.md` 草稿
+3. 打开 `$EDITOR`（默认 vim）让你改
+4. 打印最终内容，等你输入 `y` 确认
+5. 提交更新日志 → 打 tag → 推送 master 和 tag
+6. CI 接手：构建、签名、公证、部署到 app.bgm.fun
+
+其他参数：
+
+```bash
+./scripts/release.sh v1.3.5 --no-edit   # 不改草稿，直接确认
+./scripts/release.sh v1.3.5 --dry-run   # 只生成草稿并预览，不提交
+```
+
+草稿长这样，改完保存退出即可：
+
+```md
+## 更新内容
+
+自 v1.3.4 以来的变更：
+
+- fix(ui): 修复设置页崩溃
+- feat: 支持按进程名排除
+
+## 升级说明
+
+- 直接点「安装更新」即可，无需手动操作
+```
+
+## 想手动发版时
+
+钩子会拦住没有 notes 的 tag。确实要跳过（比如补发）：
+
+```bash
+git push --no-verify origin v1.3.5
+```
