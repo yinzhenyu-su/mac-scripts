@@ -20,6 +20,7 @@ import argparse
 import re
 import sys
 import xml.etree.ElementTree as ET
+from xml.sax.saxutils import unescape
 from email.utils import format_datetime
 from datetime import datetime, timezone
 from pathlib import Path
@@ -159,16 +160,8 @@ def markdown_to_html(md: str) -> str:
     return "\n".join(out)
 
 
-def description_element(notes: str, notes_format: str = "markdown") -> ET.Element:
-    """构造 <description>。Sparkle 会把它的子节点当 HTML 渲染。"""
-    html = markdown_to_html(notes) if notes_format == "markdown" else notes
-    try:
-        return ET.fromstring(f"<description>{html}</description>")
-    except ET.ParseError:
-        # 兜底：不是合法 XML 就按纯文本塞进去
-        el = ET.Element("description")
-        el.text = notes
-        return el
+def notes_to_html(notes: str, notes_format: str = "markdown") -> str:
+    return markdown_to_html(notes) if notes_format == "markdown" else notes
 
 
 def item_version(item: ET.Element) -> int:
@@ -199,7 +192,11 @@ def build_item(
     ET.SubElement(item, sp("shortVersionString")).text = short_version
     ET.SubElement(item, sp("minimumSystemVersion")).text = min_os
     if notes_html.strip():
-        item.append(description_element(notes_html, notes_format))
+        # Sparkle 用 NSXMLElement.stringValue 取这个节点的文本，再当 HTML 渲染。
+        # 所以必须把 HTML 存成「文本」（最终输出为 CDATA），不能拆成 XML 子节点，
+        # 否则标签会被吃掉，弹窗里只剩纯文字。
+        html = notes_to_html(notes_html, notes_format)
+        ET.SubElement(item, "description").text = html
     ET.SubElement(
         item,
         "enclosure",
@@ -221,6 +218,15 @@ def merge_items(existing: list[ET.Element], new: ET.Element, max_items: int) -> 
     return kept[:max_items]
 
 
+CDATA_RE = re.compile(r"<description>(.*?)</description>", re.DOTALL)
+
+
+def _to_cdata(match: re.Match[str]) -> str:
+    """把 <description> 的转义文本还原成 CDATA，Sparkle 才能拿到原始 HTML。"""
+    html = unescape(match.group(1))
+    return "<description><![CDATA[" + html.replace("]]>", "]]]]><![CDATA[>") + "]]></description>"
+
+
 def write_appcast(path: Path, title: str, items: list[ET.Element]) -> None:
     rss = ET.Element("rss", {"version": "2.0"})
     channel = ET.SubElement(rss, "channel")
@@ -229,6 +235,7 @@ def write_appcast(path: Path, title: str, items: list[ET.Element]) -> None:
         channel.append(it)
     ET.indent(rss, space="  ")
     body = '<?xml version="1.0" encoding="utf-8"?>\n' + ET.tostring(rss, encoding="unicode")
+    body = CDATA_RE.sub(_to_cdata, body)
     path.write_text(body + "\n", encoding="utf-8")
 
 

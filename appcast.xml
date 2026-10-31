@@ -4,12 +4,21 @@
     <title>智能退出</title>
     <item>
       <title>1.3.4</title>
-      <pubDate>Sat, 31 Oct 2026 03:24:17 +0000</pubDate>
+      <pubDate>Sat, 31 Oct 2026 03:30:38 +0000</pubDate>
       <sparkle:version>12</sparkle:version>
       <sparkle:shortVersionString>1.3.4</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description>**Full Changelog**: https://github.com/yinzhenyu-su/mac-scripts/compare/v1.3.3...v1.3.4
-</description>
+      <description><![CDATA[<h2>更新内容</h2>
+<ul>
+<li>自动更新改由自有服务器 <code>app.bgm.fun</code> 提供，国内下载更快、更稳定，不再依赖 GitHub</li>
+<li>安装包发布后会自动校验大小与签名，避免发出不完整的包</li>
+<li>修复上一版本（1.3.2）安装后无法启动的问题</li>
+</ul>
+<h2>升级说明</h2>
+<ul>
+<li>直接点「安装更新」即可，无需手动操作</li>
+<li>更新完成后，后续版本将从 <code>https://app.bgm.fun/appcast.xml</code> 检查更新</li>
+</ul>]]></description>
       <enclosure url="https://app.bgm.fun/SmartClose-v1.3.4.dmg" length="5424259" type="application/octet-stream" sparkle:edSignature="oNXvE0QOEymlsMFsujjrcJwUG2tmLBkSyrjFS1bzvV6DbE5HNWRpzrig8t8e4VoBDJiCIoV6D1nIGphm7t5DCw==" />
     </item>
     <item>
@@ -18,8 +27,8 @@
       <sparkle:version>10</sparkle:version>
       <sparkle:shortVersionString>1.3.3</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description>**Full Changelog**: https://github.com/yinzhenyu-su/mac-scripts/compare/v1.3.2...v1.3.3
-</description>
+      <description><![CDATA[**Full Changelog**: https://github.com/yinzhenyu-su/mac-scripts/compare/v1.3.2...v1.3.3
+]]></description>
       <enclosure url="https://github.com/yinzhenyu-su/mac-scripts/releases/download/v1.3.3/SmartClose-v1.3.3.dmg" length="5421715" type="application/octet-stream" sparkle:edSignature="djzefPDRWOaYWq2krxfCGGHocUBZ/z8TXKwDF67+HcORBDesYYBMoT8gqm4A1Tt6BGnUn8zIF1/NP0Qh30aNCg==" />
     </item>
   </channel>
