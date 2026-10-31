@@ -174,7 +174,7 @@ jobs:
 
           NAME="SmartClose-${TAG_NAME}.dmg"
           LOCAL_SIZE=$(stat -f%z "$DMG_PATH")
-          echo "上传 $NAME（$LOCAL_SIZE 字节）…"
+          echo "上传 ${NAME}（${LOCAL_SIZE} 字节）…"
           put "$DMG_PATH" ".upload-${NAME}"
           publish ".upload-${NAME}" "$NAME"
 
