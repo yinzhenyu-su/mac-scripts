@@ -95,22 +95,24 @@ class MarkdownTests(unittest.TestCase):
     def test_escapes_html_and_survives_xml(self):
         html = appcast.markdown_to_html("用 <script> 而不是 & 符号")
         self.assertIn("&lt;script&gt;", html)
-        el = appcast.description_element(html, "html")
-        self.assertEqual(el.tag, "description")
-        self.assertIn("&lt;script&gt;", ET.tostring(el, encoding="unicode"))
+        self.assertIn("&amp;", html)
 
-    def test_description_is_markup_not_escaped_text(self):
-        item = appcast.build_item(
-            short_version="1.3.4", build=12, min_os="13.0",
-            notes_html="## 标题\n\n- 一条", dmg_url="https://e.com/a.dmg",
-            length=1, signature="S", notes_format="markdown",
-        )
-        desc = item.find("description")
-        self.assertIsNotNone(desc)
-        self.assertEqual(desc[0].tag, "h2")
-        xml = ET.tostring(item, encoding="unicode")
-        self.assertIn("<h2>", xml)
-        self.assertNotIn("&lt;h2&gt;", xml)
+    def test_description_written_as_cdata_html(self):
+        """Sparkle 用 NSXMLElement.stringValue 读 description，必须输出 CDATA，否则标签会丢。"""
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "appcast.xml"
+            item = appcast.build_item(
+                short_version="1.3.4", build=12, min_os="13.0",
+                notes_html="## 标题\n\n- 一条 **重点**", dmg_url="https://e.com/a.dmg",
+                length=1, signature="S", notes_format="markdown",
+            )
+            appcast.write_appcast(path, "t", [item])
+            xml = path.read_text(encoding="utf-8")
+            self.assertIn("<![CDATA[<h2>标题</h2>", xml)
+            self.assertIn("<strong>重点</strong>", xml)
+            # 解析回来，stringValue 等价物应仍是 HTML 源码
+            desc = ET.parse(path).getroot().find("channel/item/description")
+            self.assertIn("<h2>标题</h2>", desc.text)
 
     def test_plain_text_fallback(self):
         html = appcast.markdown_to_html("just text")
