@@ -265,3 +265,61 @@ docker exec 1Panel-openresty-XXXX openresty -s reload
 | `curl: (67) Access denied: 530` | 密码错了（注意从 md 里抄时别把反引号带上） |
 | `AUTH TLS` 返回 `500` | pure-ftpd 没开 TLS，按上面第 1 步配置 |
 | 上传成功但 HTTPS 404 | 检查 FTP 的 chroot 根是否就是 nginx 的 `root`，两者必须是同一个目录 |
+
+---
+
+# 六、更新日志（Sparkle 更新弹窗显示的内容）
+
+## 写在哪
+
+新建 `release-notes/<tag>.md`，比如 `release-notes/v1.3.5.md`，用 Markdown 写就行：
+
+```md
+## 更新内容
+
+- 修复 xxx
+- 新增 **yyy**
+
+## 升级说明
+
+- 直接点「安装更新」即可
+```
+
+发版时 CI 会：
+
+1. 找到 `release-notes/<tag>.md` 就用它；找不到就用 `git log <上一个tag>..<tag>` 自动生成
+2. 同一份内容写入 **GitHub Release** 和 **appcast.xml 的 description**
+3. Markdown 自动转成 HTML（标题/列表/粗体/行内代码/链接/引用/代码块）
+
+## 为什么必须是 HTML + CDATA
+
+Sparkle 解析 appcast 时用的是 `NSXMLElement.stringValue`：
+
+```objc
+NSString *description = node.stringValue;   // 只取「文本」，不含子节点标签
+...
+_itemDescriptionFormat = @"html";
+```
+
+所以 `<description>` 里必须是一段**文本形式的 HTML**（CDATA 或转义文本），写成 XML 子节点会被吃掉标签，弹窗里只剩纯文字——这就是之前「更新日志不完整」的原因。`make-appcast.py` 现在统一输出：
+
+```xml
+<description><![CDATA[<h2>更新内容</h2><ul><li>…</li></ul>]]></description>
+```
+
+## 历史版本补日志
+
+appcast 已发布的条目可以单独回填，不用重新打包：
+
+```bash
+python3 scripts/make-appcast.py --appcast appcast.xml \
+  --tag v1.3.4 --build 12 \
+  --dmg-url https://app.bgm.fun/SmartClose-v1.3.4.dmg \
+  --length <appcast 里的 length> \
+  --signature <appcast 里的 edSignature> \
+  --notes-file release-notes/v1.3.4.md
+
+# 再上传 appcast.xml 到 app.bgm.fun（FTPS 原子替换），并提交回仓库
+```
+
+签名和 length 必须与已发布 DMG 保持一致，否则 Sparkle 会拒绝安装。
