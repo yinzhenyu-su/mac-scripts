@@ -34,7 +34,10 @@ fi
 
 command -v git >/dev/null || die "缺少 git"
 [[ "$(git rev-parse --abbrev-ref HEAD)" == "master" ]] || die "请在 master 分支上发版（当前：$(git rev-parse --abbrev-ref HEAD)）"
-[[ -z "$(git status --porcelain)" ]] || die "工作区不干净，先提交或 stash 再发版"
+# 草稿文件本身不算「工作区脏」：用 --dry-run 生成草稿、改完再跑一次是正常用法
+DIRTY="$(git status --porcelain | grep -v "release-notes/${TAG}.md" || true)"
+[[ -z "$DIRTY" ]] || die "工作区不干净，先提交或 stash 再发版：
+$DIRTY"
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && die "tag $TAG 已存在"
 
 PREV="$(git describe --tags --abbrev=0 HEAD 2>/dev/null || true)"
