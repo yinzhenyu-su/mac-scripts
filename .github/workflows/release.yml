@@ -105,15 +105,16 @@ jobs:
               --generate-notes
           fi
 
-      # 5) 生成 appcast 并提交回 master（Sparkle 从这里判断有没有新版本）
-      #    注意顺序：先有 Release/DMG，再发 appcast，否则用户会拿到 404 链接
-      - name: 生成并提交 appcast
+      # 5) 生成 appcast（下载地址指向自建站点 app.bgm.fun）
+      #    顺序很重要：先有可下载的 DMG，再更新 appcast，否则用户会拿到 404
+      - name: 生成 appcast
         env:
           GH_TOKEN: ${{ github.token }}
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           TAG_NAME: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
           DMG_PATH: smart-close/build/智能退出.dmg
+          APP_BGM_URL: ${{ secrets.APP_BGM_URL }}
         run: |
           set -euo pipefail
           SPARKLE_VERSION=2.6.4
@@ -132,8 +133,9 @@ jobs:
           fi
 
           gh release view "$TAG_NAME" --json body -q .body > "$RUNNER_TEMP/notes.md" || true
-          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG_NAME}/SmartClose-${TAG_NAME}.dmg"
+          URL="${APP_BGM_URL}/SmartClose-${TAG_NAME}.dmg"
 
+          # 基于远端 master 的最新 appcast 合并，避免把上一版条目丢掉
           git fetch origin master
           git checkout -B appcast-update origin/master
           python3 scripts/make-appcast.py \
@@ -144,7 +146,79 @@ jobs:
             --length "$LEN" \
             --signature "$SIG" \
             --notes-file "$RUNNER_TEMP/notes.md"
+          cp appcast.xml "$RUNNER_TEMP/appcast.xml"
 
+      # 6) 部署到 app.bgm.fun（FTPS）：先传 DMG（新文件名，不会被用户提前访问），
+      #    校验大小无误后再原子替换 appcast.xml，最后才让旧 feed 指向新版本。
+      - name: 部署到 app.bgm.fun
+        env:
+          FTP_HOST: ${{ secrets.APP_BGM_FTP_HOST }}
+          FTP_USER: ${{ secrets.APP_BGM_FTP_USER }}
+          FTP_PASS: ${{ secrets.APP_BGM_FTP_PASS }}
+          APP_BGM_URL: ${{ secrets.APP_BGM_URL }}
+          TAG_NAME: ${{ github.ref_name }}
+          DMG_PATH: smart-close/build/SmartClose-${{ github.ref_name }}.dmg
+          APPCAST: ${{ runner.temp }}/appcast.xml
+          KEEP_DMGS: "5"
+        run: |
+          set -euo pipefail
+          FTP="ftp://${FTP_HOST}"
+          AUTH=(--ssl-reqd --user "$FTP_USER:$FTP_PASS")
+          put()   { curl -fsS "${AUTH[@]}" --max-time 600 -T "$1" "${FTP}/$2"; }
+          # RNFR/RNTO 原子替换；RNTO 可直接覆盖同名文件，
+          # 注意别用 --quote "-DELE ..."：curl 会把带减号的命令放到传输之后执行，反而删掉刚改好的文件
+          publish() {
+            curl -fsS "${AUTH[@]}" --max-time 120 \
+              --quote "RNFR $1" --quote "RNTO $2" "${FTP}/" -o /dev/null
+          }
+
+          NAME="SmartClose-${TAG_NAME}.dmg"
+          LOCAL_SIZE=$(stat -f%z "$DMG_PATH")
+          echo "上传 $NAME（$LOCAL_SIZE 字节）…"
+          put "$DMG_PATH" ".upload-${NAME}"
+          publish ".upload-${NAME}" "$NAME"
+
+          REMOTE_SIZE=$(curl -fsSI "${APP_BGM_URL}/${NAME}" | tr -d '\r' \
+            | awk 'tolower($1)=="content-length:"{print $2}' | tail -1)
+          if [ "$LOCAL_SIZE" != "$REMOTE_SIZE" ]; then
+            echo "✗ 线上文件大小不一致：本地 $LOCAL_SIZE / 线上 ${REMOTE_SIZE:-未知}" >&2
+            exit 1
+          fi
+          echo "✔ DMG 已可用：${APP_BGM_URL}/${NAME}"
+
+          echo "上传 appcast.xml …"
+          put "$APPCAST" ".appcast.xml.${TAG_NAME}"
+          publish ".appcast.xml.${TAG_NAME}" "appcast.xml"
+
+          if ! curl -fsS "${APP_BGM_URL}/appcast.xml" | grep -q "SmartClose-${TAG_NAME}.dmg"; then
+            echo "✗ 线上 appcast.xml 未包含本次版本" >&2
+            exit 1
+          fi
+          echo "✔ appcast 已更新：${APP_BGM_URL}/appcast.xml"
+
+          # 只保留最近 KEEP_DMGS 个安装包，避免磁盘被历史版本占满
+          LIST=$(curl -fsS "${AUTH[@]}" --max-time 120 "${FTP}/" \
+            | awk '{print $NF}' | grep -E '^SmartClose-v.*\.dmg$' | sort -V)
+          TOTAL=$(printf '%s\n' "$LIST" | grep -c . || true)
+          TOTAL=${TOTAL:-0}
+          DROP=$((TOTAL - KEEP_DMGS))
+          if [ "$DROP" -gt 0 ]; then
+            printf '%s\n' "$LIST" | head -n "$DROP" | while read -r old; do
+              echo "清理旧版本：$old"
+              curl -fsS "${AUTH[@]}" --max-time 60 -Q "-DELE $old" "${FTP}/" -o /dev/null
+            done
+          fi
+          printf '%s\n' "$LIST" | tail -5
+
+      # 7) 把 appcast 也提交回仓库：老用户仍从 GitHub 的 feed 检查更新，
+      #    两边内容一致，他们升级后才会切到自建域名
+      - name: 提交 appcast 回 master
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/appcast.xml" appcast.xml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add appcast.xml

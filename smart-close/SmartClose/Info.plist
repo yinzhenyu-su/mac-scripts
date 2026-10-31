@@ -14,7 +14,7 @@
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
-    <key>SUFeedURL</key><string>https://raw.githubusercontent.com/yinzhenyu-su/mac-scripts/master/appcast.xml</string>
+    <key>SUFeedURL</key><string>https://app.bgm.fun/appcast.xml</string>
     <key>SUPublicEDKey</key><string>WZ+e2bCJMQwswOWnaNMPpaaNHtHRzSc82aIE9ulVwO4=</string>
     <key>SUEnableAutomaticChecks</key><true/>
     <key>SUScheduledCheckInterval</key><integer>86400</integer>
