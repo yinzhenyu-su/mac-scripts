@@ -80,6 +80,43 @@ class WriteTests(unittest.TestCase):
         self.assertIsNone(item.find("description"))
 
 
+class MarkdownTests(unittest.TestCase):
+    def test_headings_lists_bold(self):
+        html = appcast.markdown_to_html(
+            "## 更新内容\n\n- 修复 **启动崩溃**\n- 新增 `--flag`\n\n详见 [文档](https://example.com/a?b=1)\n"
+        )
+        self.assertIn("<h2>更新内容</h2>", html)
+        self.assertIn("<ul>", html)
+        self.assertIn("<li>修复 <strong>启动崩溃</strong></li>", html)
+        self.assertIn("<li>新增 <code>--flag</code></li>", html)
+        self.assertIn('<a href="https://example.com/a?b=1">文档</a>', html)
+        self.assertIn("<p>", html)
+
+    def test_escapes_html_and_survives_xml(self):
+        html = appcast.markdown_to_html("用 <script> 而不是 & 符号")
+        self.assertIn("&lt;script&gt;", html)
+        el = appcast.description_element(html, "html")
+        self.assertEqual(el.tag, "description")
+        self.assertIn("&lt;script&gt;", ET.tostring(el, encoding="unicode"))
+
+    def test_description_is_markup_not_escaped_text(self):
+        item = appcast.build_item(
+            short_version="1.3.4", build=12, min_os="13.0",
+            notes_html="## 标题\n\n- 一条", dmg_url="https://e.com/a.dmg",
+            length=1, signature="S", notes_format="markdown",
+        )
+        desc = item.find("description")
+        self.assertIsNotNone(desc)
+        self.assertEqual(desc[0].tag, "h2")
+        xml = ET.tostring(item, encoding="unicode")
+        self.assertIn("<h2>", xml)
+        self.assertNotIn("&lt;h2&gt;", xml)
+
+    def test_plain_text_fallback(self):
+        html = appcast.markdown_to_html("just text")
+        self.assertEqual(html, "<p>just text</p>")
+
+
 class CliTests(unittest.TestCase):
     def test_cli_creates_and_updates(self):
         with tempfile.TemporaryDirectory() as d:

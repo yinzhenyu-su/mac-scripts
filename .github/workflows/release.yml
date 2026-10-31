@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v7
+        with:
+          # 更新日志要按上一个 tag 生成，必须有完整历史
+          fetch-depth: 0
 
       # 1) 导入 Developer ID Application 证书到临时钥匙串
       #    需要的 Secrets：MACOS_CERT_P12（base64 的 .p12）、MACOS_CERT_PASSWORD、KEYCHAIN_PASSWORD
@@ -89,20 +92,53 @@ jobs:
           xcrun stapler validate "$DMG"
           hdiutil verify "$DMG"
 
+      # 2.5) 准备更新日志：优先 release-notes/<tag>.md，否则用上一个 tag 之后的提交生成。
+      #      同一份内容同时给 GitHub Release 和 appcast（Sparkle 更新弹窗），避免两处不一致。
+      - name: 准备更新日志
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          NOTES="release-notes/${TAG_NAME}.md"
+          if [ -f "$NOTES" ]; then
+            cp "$NOTES" "$RUNNER_TEMP/notes.md"
+            echo "使用 $NOTES"
+          else
+            PREV="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
+            {
+              echo "## 更新内容"
+              echo
+              if [ -n "$PREV" ]; then
+                echo "自 ${PREV} 以来的变更："
+                echo
+                git log --no-merges --pretty="- %s" "${PREV}..${TAG_NAME}" \
+                  | grep -v "chore(appcast)" || true
+              else
+                git log --no-merges -10 --pretty="- %s" | grep -v "chore(appcast)" || true
+              fi
+            } > "$RUNNER_TEMP/notes.md"
+            echo "未找到 $NOTES，已根据 git log 生成"
+          fi
+          echo "----- 更新日志 -----"
+          cat "$RUNNER_TEMP/notes.md"
+          echo "--------------------"
+
       - name: 发布到 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
           DMG_PATH: smart-close/build/智能退出.dmg
           RELEASE_PATH: smart-close/build/SmartClose-${{ github.ref_name }}.dmg
+          NOTES: ${{ runner.temp }}/notes.md
         run: |
           cp "$DMG_PATH" "$RELEASE_PATH"
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" "$RELEASE_PATH" --clobber
+            gh release edit "$TAG_NAME" --notes-file "$NOTES"
           else
             gh release create "$TAG_NAME" "$RELEASE_PATH" \
               --title "智能退出 $TAG_NAME" \
-              --generate-notes
+              --notes-file "$NOTES"
           fi
 
       # 5) 生成 appcast（下载地址指向自建站点 app.bgm.fun）
@@ -132,7 +168,6 @@ jobs:
             exit 1
           fi
 
-          gh release view "$TAG_NAME" --json body -q .body > "$RUNNER_TEMP/notes.md" || true
           URL="${APP_BGM_URL}/SmartClose-${TAG_NAME}.dmg"
 
           # 基于远端 master 的最新 appcast 合并，避免把上一版条目丢掉

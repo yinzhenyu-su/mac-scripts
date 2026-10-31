@@ -55,6 +55,122 @@ def read_items(path: Path) -> list[ET.Element]:
     return list(channel.findall("item"))
 
 
+def _esc(text: str) -> str:
+    """HTML 转义，防止更新日志里混入标签。"""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _inline(text: str) -> str:
+    """行内 Markdown → HTML（输入已做 HTML 转义）。"""
+    text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', text)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"(?<![\*\w])\*(?!\s)(.+?)(?<!\s)\*(?![\*\w])", r"<em>\1</em>", text)
+    return text
+
+
+def markdown_to_html(md: str) -> str:
+    """把常见的 Markdown 子集转成 Sparkle 弹窗能渲染的 HTML。
+
+    只覆盖发布说明用得到的语法：标题、列表、引用、代码块、加粗、行内代码、链接。
+    """
+    out: list[str] = []
+    lines = md.replace("\r\n", "\n").split("\n")
+    i = 0
+    list_tag: str | None = None
+    para: list[str] = []
+
+    def flush_para() -> None:
+        if para:
+            out.append("<p>" + _inline(" ".join(para)) + "</p>")
+            para.clear()
+
+    def close_list() -> None:
+        nonlocal list_tag
+        if list_tag:
+            out.append(f"</{list_tag}>")
+            list_tag = None
+
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        if stripped.startswith("```"):
+            flush_para()
+            close_list()
+            i += 1
+            block: list[str] = []
+            while i < len(lines) and not lines[i].strip().startswith("```"):
+                block.append(lines[i])
+                i += 1
+            i += 1
+            out.append("<pre><code>" + _esc("\n".join(block)) + "</code></pre>")
+            continue
+
+        if not stripped:
+            flush_para()
+            close_list()
+            i += 1
+            continue
+
+        heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading:
+            flush_para()
+            close_list()
+            level = len(heading.group(1))
+            out.append(f"<h{level}>" + _inline(_esc(heading.group(2))) + f"</h{level}>")
+            i += 1
+            continue
+
+        if re.match(r"^(-{3,}|\*{3,}|_{3,})$", stripped):
+            flush_para()
+            close_list()
+            out.append("<hr>")
+            i += 1
+            continue
+
+        bullet = re.match(r"^[-*+]\s+(.*)$", stripped)
+        ordered = re.match(r"^\d+[.)]\s+(.*)$", stripped)
+        if bullet or ordered:
+            flush_para()
+            want = "ul" if bullet else "ol"
+            if list_tag != want:
+                close_list()
+                out.append(f"<{want}>")
+                list_tag = want
+            body = (bullet or ordered).group(1)
+            out.append("<li>" + _inline(_esc(body)) + "</li>")
+            i += 1
+            continue
+
+        quote = re.match(r"^>\s?(.*)$", stripped)
+        if quote:
+            flush_para()
+            close_list()
+            out.append("<blockquote>" + _inline(_esc(quote.group(1))) + "</blockquote>")
+            i += 1
+            continue
+
+        para.append(_esc(line.strip()))
+        i += 1
+
+    flush_para()
+    close_list()
+    return "\n".join(out)
+
+
+def description_element(notes: str, notes_format: str = "markdown") -> ET.Element:
+    """构造 <description>。Sparkle 会把它的子节点当 HTML 渲染。"""
+    html = markdown_to_html(notes) if notes_format == "markdown" else notes
+    try:
+        return ET.fromstring(f"<description>{html}</description>")
+    except ET.ParseError:
+        # 兜底：不是合法 XML 就按纯文本塞进去
+        el = ET.Element("description")
+        el.text = notes
+        return el
+
+
 def item_version(item: ET.Element) -> int:
     raw = item.findtext(sp("version"))
     try:
@@ -73,6 +189,7 @@ def build_item(
     length: int,
     signature: str,
     pub_date: datetime | None = None,
+    notes_format: str = "html",
 ) -> ET.Element:
     item = ET.Element("item")
     ET.SubElement(item, "title").text = short_version
@@ -82,7 +199,7 @@ def build_item(
     ET.SubElement(item, sp("shortVersionString")).text = short_version
     ET.SubElement(item, sp("minimumSystemVersion")).text = min_os
     if notes_html.strip():
-        ET.SubElement(item, "description").text = notes_html
+        item.append(description_element(notes_html, notes_format))
     ET.SubElement(
         item,
         "enclosure",
@@ -123,7 +240,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dmg-url", required=True)
     ap.add_argument("--length", required=True, type=int)
     ap.add_argument("--signature", required=True, help="sign_update 输出的 edSignature")
-    ap.add_argument("--notes-file", type=Path, help="HTML/文本更新日志")
+    ap.add_argument("--notes-file", type=Path, help="更新日志：Markdown（默认）或 HTML，见 --notes-format")
+    ap.add_argument("--notes-format", choices=["markdown", "html"], default="markdown",
+                    help="--notes-file 的格式；markdown 会被转成 HTML 供 Sparkle 渲染")
     ap.add_argument("--min-os", default="13.0")
     ap.add_argument("--max-items", type=int, default=10)
     ap.add_argument("--title", default="智能退出")
@@ -146,6 +265,7 @@ def main(argv: list[str] | None = None) -> int:
         dmg_url=args.dmg_url,
         length=args.length,
         signature=args.signature.strip(),
+        notes_format=args.notes_format,
     )
     items = merge_items(read_items(args.appcast), new_item, args.max_items)
     write_appcast(args.appcast, args.title, items)
