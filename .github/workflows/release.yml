@@ -117,7 +117,7 @@ jobs:
                 git log --no-merges -10 --pretty="- %s" | grep -v "chore(appcast)" || true
               fi
             } > "$RUNNER_TEMP/notes.md"
-            echo "未找到 $NOTES，已根据 git log 生成"
+            echo "未找到 ${NOTES}，已根据 git log 生成"
             echo "::warning title=缺少更新日志::没有 release-notes/${TAG_NAME}.md，本次用 git log 自动生成。建议用 ./scripts/release.sh 发版。"
           fi
           echo "----- 更新日志 -----"
