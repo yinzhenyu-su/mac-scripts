@@ -177,3 +177,91 @@ gh secret set SPARKLE_ED_PRIVATE_KEY --repo yinzhenyu-su/mac-scripts < ~/sparkle
 echo "$SPARKLE_ED_PRIVATE_KEY" | /tmp/bin/sign_update --ed-key-file - SmartClose-v1.3.2.dmg
 # 对比输出的 edSignature 与 appcast.xml 中的值
 ```
+
+---
+
+# 五、应用内更新分发（app.bgm.fun）
+
+App 里写死的更新地址：
+
+```
+SUFeedURL = https://app.bgm.fun/appcast.xml
+```
+
+站点根目录（FTPS 的 chroot 根，也是 nginx 的 root）：
+
+```
+/opt/1panel/www/sites/app.bgm.fun/index
+```
+
+## 发版时的执行顺序
+
+CI 里是**先传包、再改 feed**，任何一步失败都不会让用户拿到死链：
+
+1. 构建 → 签名 → 公证 → staple
+2. 发布 GitHub Release（作为备份归档）
+3. 生成 appcast（`enclosure` 指向 `https://app.bgm.fun/SmartClose-<tag>.dmg`）
+4. 上传 DMG 到 `.upload-<name>` → `RNFR/RNTO` 原子改名为正式名 → 用 HTTPS `Content-Length` 校验大小
+5. 上传 `appcast.xml` 到临时名 → 原子改名 → 用 HTTPS 回读确认含本次版本
+6. 把 appcast 提交回仓库，让仍读旧 feed（GitHub raw）的老用户也能收到
+
+只保留最近 5 个 DMG（`KEEP_DMGS`），更旧的自动删除。
+
+## 需要的 Secrets
+
+| Secret | 值 |
+|---|---|
+| `APP_BGM_FTP_HOST` | `app.bgm.fun` |
+| `APP_BGM_FTP_USER` | `app` |
+| `APP_BGM_FTP_PASS` | FTP 密码 |
+| `APP_BGM_URL` | `https://app.bgm.fun` |
+
+签名相关的 `SPARKLE_ED_PRIVATE_KEY` 等见上文。
+
+## 服务器一次性配置
+
+### 1. 给 pure-ftpd 开 TLS
+
+1Panel 的 FTP 默认**没有** TLS，密码会明文过公网。用站点证书生成合并 PEM：
+
+```bash
+cat /opt/1panel/www/sites/app.bgm.fun/ssl/privkey.pem \
+    /opt/1panel/www/sites/app.bgm.fun/ssl/fullchain.pem \
+  > /etc/ssl/private/pure-ftpd.pem
+chmod 600 /etc/ssl/private/pure-ftpd.pem
+echo 1 > /etc/pure-ftpd/conf/TLS
+
+systemctl restart pure-ftpd.service
+
+# 验证
+echo | openssl s_client -starttls ftp -connect 127.0.0.1:21 2>&1 | grep -E "subject=|Protocol"
+```
+
+> 若以后在 1Panel 页面里改过 FTP 设置，可能覆盖 `/etc/pure-ftpd/conf/TLS`，重跑上面的命令即可。
+
+### 2. appcast.xml 禁止长缓存
+
+否则用户可能几小时都收不到更新。nginx 站点配置（1Panel → 网站 → 配置文件，或 `/opt/1panel/www/conf.d/app.bgm.fun.conf`）：
+
+```nginx
+location = /appcast.xml {
+    add_header Cache-Control "no-cache" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+}
+```
+
+改完在容器里校验并重载：
+
+```bash
+docker exec 1Panel-openresty-XXXX openresty -t && \
+docker exec 1Panel-openresty-XXXX openresty -s reload
+```
+
+## 坑
+
+| 现象 | 原因 |
+|---|---|
+| `curl --quote "-DELE x"` 把刚改名的文件删了 | 带前导减号的 quote 命令会被 curl 放到传输**之后**执行。RNTO 本身支持覆盖同名文件，不需要先 DELE |
+| `curl: (67) Access denied: 530` | 密码错了（注意从 md 里抄时别把反引号带上） |
+| `AUTH TLS` 返回 `500` | pure-ftpd 没开 TLS，按上面第 1 步配置 |
+| 上传成功但 HTTPS 404 | 检查 FTP 的 chroot 根是否就是 nginx 的 `root`，两者必须是同一个目录 |
