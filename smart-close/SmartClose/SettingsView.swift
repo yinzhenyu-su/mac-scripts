@@ -11,9 +11,9 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("不自动退出的 App")
+            Text(L10n.settingsTitle)
                 .font(.title2.bold())
-            Text("列表中的 App 在关闭最后一个窗口时，会保留后台或自行管理后台")
+            Text(L10n.settingsDescription)
                 .foregroundStyle(.secondary)
 
             List(sortedRules) { rule in
@@ -23,27 +23,27 @@ struct SettingsView: View {
                         Text(rule.detail).font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button("移除") { store.remove(rule) }
+                    Button(L10n.remove) { store.remove(rule) }
                         .buttonStyle(.borderless)
                 }
             }
             .frame(minHeight: 300)
 
             HStack {
-                Button("添加 App…") { chooseApplication() }
+                Button(L10n.addApp) { chooseApplication() }
                 Spacer()
-                Text("不在上方列表中的 App 在关闭最后一个标准窗口时会自动退出")
+                Text(L10n.settingsFooter)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }
         .padding(20)
         .frame(width: 560, height: 440)
-        .alert("无法添加 App", isPresented: Binding(
+        .alert(L10n.cannotAddApp, isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
-            Button("好", role: .cancel) { errorMessage = nil }
+            Button(L10n.okay, role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
@@ -56,7 +56,7 @@ struct SettingsView: View {
         panel.canChooseFiles = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
-        panel.message = "选择需要在关闭最后一个窗口后继续运行的 App"
+        panel.message = L10n.chooseAppMessage
         if panel.runModal() == .OK, let url = panel.url {
             do { try store.addApplication(at: url) }
             catch { errorMessage = error.localizedDescription }

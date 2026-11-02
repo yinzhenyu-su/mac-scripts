@@ -252,7 +252,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="--notes-file 的格式；markdown 会被转成 HTML 供 Sparkle 渲染")
     ap.add_argument("--min-os", default="13.0")
     ap.add_argument("--max-items", type=int, default=10)
-    ap.add_argument("--title", default="智能退出")
+    ap.add_argument("--title", default="Neat Quit · 智能退出")
     args = ap.parse_args(argv)
 
     short_version = parse_tag(args.tag)

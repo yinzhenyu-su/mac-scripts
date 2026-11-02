@@ -12,7 +12,9 @@ struct AppRule: Codable, Hashable, Identifiable {
 
     var id: String { "\(match.rawValue):\(value)" }
     var displayName: String { match == .bundleID ? (NSWorkspace.shared.urlForApplication(withBundleIdentifier: value)?.deletingPathExtension().lastPathComponent ?? value) : value }
-    var detail: String { match == .bundleID ? value : "按应用名称匹配" }
+    var detail: String {
+        match == .bundleID ? value : NSLocalizedString("rule.detail.applicationName", comment: "")
+    }
 }
 
 struct CloseDecision {
@@ -105,6 +107,8 @@ final class RuleStore: ObservableObject {
 
     enum RuleError: LocalizedError {
         case missingBundleID
-        var errorDescription: String? { "无法读取这个 App 的 Bundle ID。" }
+        var errorDescription: String? {
+            NSLocalizedString("rule.error.missingBundleID", comment: "")
+        }
     }
 }
