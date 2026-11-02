@@ -3,7 +3,7 @@ import ApplicationServices
 import OSLog
 
 final class CloseMonitor {
-    private let logger = Logger(subsystem: "com.yinzhenyu.smartclose", category: "CloseMonitor")
+    private let logger = Logger(subsystem: "fun.bgm.neatquit", category: "CloseMonitor")
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var keyboardEventTap: CFMachPort?

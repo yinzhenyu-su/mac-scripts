@@ -20,8 +20,8 @@ UNIVERSAL="${UNIVERSAL:-0}"
 NOTARY_ARGS=()
 
 BUILD_ARGS=(
-  -project "$SCRIPT_DIR/SmartClose.xcodeproj"
-  -scheme SmartClose
+  -project "$SCRIPT_DIR/NeatQuit.xcodeproj"
+  -scheme NeatQuit
   -configuration Release
   -derivedDataPath "$BUILD_DIR"
 )

@@ -1,6 +1,6 @@
 # 深色应用图标生成记录
 
-使用内置 image_gen 工具。第一张参考图为现有 AppIcon 的 1024 PNG，第二张为用户提供的深色图标风格参考。输出缩放为 1024 × 1024，保存于 `SmartClose/AppIcon.icon/Assets/icon-dark.png`。
+使用内置 image_gen 工具。第一张参考图为现有 AppIcon 的 1024 PNG，第二张为用户提供的深色图标风格参考。输出缩放为 1024 × 1024，保存于 `NeatQuit/AppIcon.icon/Assets/icon-dark.png`。
 
 ## 提示词
 

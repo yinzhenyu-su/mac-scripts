@@ -22,7 +22,7 @@ def make_item(version: str, build: int, notes: str = "notes", sig: str = "SIG") 
         build=build,
         min_os="13.0",
         notes_html=notes,
-        dmg_url=f"https://example.com/SmartClose-v{version}.dmg",
+        dmg_url=f"https://example.com/NeatQuit-v{version}.dmg",
         length=1234,
         signature=sig,
     )
@@ -133,8 +133,8 @@ class CliTests(unittest.TestCase):
                     "--notes-file", str(notes),
                 ])
 
-            self.assertEqual(run("v1.3.2", 7, "https://example.com/SmartClose-v1.3.2.dmg", "SIG7"), 0)
-            self.assertEqual(run("v1.3.3", 8, "https://example.com/SmartClose-v1.3.3.dmg", "SIG8"), 0)
+            self.assertEqual(run("v1.3.2", 7, "https://example.com/NeatQuit-v1.3.2.dmg", "SIG7"), 0)
+            self.assertEqual(run("v1.3.3", 8, "https://example.com/NeatQuit-v1.3.3.dmg", "SIG8"), 0)
             root = ET.parse(path).getroot()
             items = root.findall("channel/item")
             self.assertEqual([appcast.item_version(i) for i in items], [8, 7])

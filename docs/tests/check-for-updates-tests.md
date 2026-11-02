@@ -67,7 +67,7 @@ python3 scripts/check-appcast.py appcast.xml --expect-version 1.3.2
 |---|---|
 | Sparkle 嵌入签名 | `codesign -dv --verbose=4 智能退出.app/Contents/Frameworks/Sparkle.framework` 显示 Developer ID + runtime |
 | 公证 | CI 的 `spctl -a -vvv` / `stapler validate` 仍全绿 |
-| 规则测试 | `swiftc SmartClose/RuleStore.swift Tests/main.swift …` |
+| 规则测试 | `swiftc NeatQuit/RuleStore.swift Tests/main.swift …` |
 | 启动 | 关自动检查时启动 60s 内无网络连接 |
 | 关于页其他内容 | 图标、致谢、仓库链接、版本号正常 |
 

@@ -1,8 +1,10 @@
 # 智能退出
 
-英文品牌名统一为 `Neat Quit`；`SmartClose` 仅保留为 Xcode scheme、工程路径、Bundle ID 和历史安装包文件名等技术兼容标识。
+英文品牌名统一为 `Neat Quit`；Xcode scheme、工程路径与 Bundle ID 统一使用 `NeatQuit`。历史安装包文件名中的 `SmartClose` 仅用于兼容旧下载链接。
 
 应用会根据 macOS 首选语言显示中文或英文界面：中文显示“智能退出”，英文显示“Neat Quit”。
+
+> 从 1.3.5 及更早版本升级：Bundle ID 已由 `com.yinzhenyu.smartclose` 改为 `fun.bgm.neatquit`。自动更新不会跨 Bundle ID 迁移，请手动下载新版本覆盖安装一次。
 
 一个 macOS 菜单栏 App：点击窗口左上角的红色关闭按钮时，如果这是该 App 最后一个标准窗口，就请求该 App 正常退出；否则保留原本的关闭窗口行为。即使被点击的窗口所属 App 当时不是前台 App，也按同样规则处理。例外列表中的 App 始终只关闭窗口。
 
@@ -26,7 +28,7 @@ xattr -rd com.apple.quarantine "/Applications/智能退出.app"
 
 ## GitHub Release
 
-推送格式为 `v主版本.次版本.修订版本` 的标签（例如 `v1.2.2`）会自动在 GitHub Actions 的 macOS runner 上构建 DMG，并创建对应的 GitHub Release，附件名称为 `SmartClose-v1.2.2.dmg`。应用版本取自标签（去掉 `v`），构建号取自 GitHub Actions 运行编号；生成 DMG 前会校验应用内的两个版本值，不一致则终止发布。重新运行同一标签的工作流会替换该 Release 中的 DMG 附件。
+推送格式为 `v主版本.次版本.修订版本` 的标签（例如 `v1.2.2`）会自动在 GitHub Actions 的 macOS runner 上构建 DMG，并创建对应的 GitHub Release，附件名称为 `NeatQuit-v1.2.2.dmg`。应用版本取自标签（去掉 `v`），构建号取自 GitHub Actions 运行编号；生成 DMG 前会校验应用内的两个版本值，不一致则终止发布。重新运行同一标签的工作流会替换该 Release 中的 DMG 附件。
 
 ```sh
 git tag v1.2.2
@@ -42,11 +44,11 @@ git push origin v1.2.2
 打 tag 后 CI 会用 Developer ID 证书签名，并完成 Apple 公证（notarize + staple）：Release 里的 DMG 下载后**双击即可打开**，不需要再移除隔离属性（前提是仓库 Secrets 已按 [docs/ci-signing.md](../docs/ci-signing.md) 配好）。本地不设签名环境变量直接跑 `./package-dmg.sh` 时仍是 ad-hoc 签名，首次打开可能需要按上面的说明移除隔离属性。
 
 ```sh
-xcodebuild -project SmartClose.xcodeproj -scheme SmartClose -configuration Release -derivedDataPath build build
+xcodebuild -project NeatQuit.xcodeproj -scheme NeatQuit -configuration Release -derivedDataPath build build
 open "build/Build/Products/Release/智能退出.app"
 ```
 
-构建产物位于项目内的 `build/Build/Products/Release/智能退出.app`，`build/` 已被 Git 忽略。也可以在 Xcode 中打开 `SmartClose.xcodeproj`，选择 `SmartClose` scheme 运行。
+构建产物位于项目内的 `build/Build/Products/Release/智能退出.app`，`build/` 已被 Git 忽略。也可以在 Xcode 中打开 `NeatQuit.xcodeproj`，选择 `NeatQuit` scheme 运行。
 
 如需安装到“应用程序”，先从菜单栏退出正在运行的旧版“智能退出”，再执行：
 
@@ -59,7 +61,7 @@ open "/Applications/智能退出.app"
 
 菜单栏中的“⌘W 智能退出”可单独开启，默认关闭。开启后快捷键仍先由目标 App 正常处理；只有原本聚焦的是最后一个标准窗口，且该 App 的窗口已关闭或从屏幕消失时，才请求它正常退出。这样也能处理 Discord 一类将窗口隐藏、但仍保留辅助功能窗口对象的 App。关闭浏览器普通标签页、保存对话框阻止关闭或窗口信息不可读取时不会额外退出。若系统要求输入监控权限，菜单会显示授权入口；键盘监听无法启动时，鼠标关闭按钮功能仍可继续工作。
 
-应用包名称为 `智能退出.app`。应用程序图标使用 `SmartClose/AppIcon.icon`，其中 `Assets/icon-default.png` 为默认外观，`Assets/icon-dark.png` 为深色外观；macOS 26+ 按系统图标外观设置选择。旧系统保留 `SmartClose/Assets.xcassets/AppIcon.appiconset` 中的默认图标。菜单栏模板图标仍位于 `SmartClose/Assets.xcassets`。不要运行旧版 `Assets/GenerateIcons.swift`，它会覆盖当前图标。
+应用包名称为 `智能退出.app`。应用程序图标使用 `NeatQuit/AppIcon.icon`，其中 `Assets/icon-default.png` 为默认外观，`Assets/icon-dark.png` 为深色外观；macOS 26+ 按系统图标外观设置选择。旧系统保留 `NeatQuit/Assets.xcassets/AppIcon.appiconset` 中的默认图标。菜单栏模板图标仍位于 `NeatQuit/Assets.xcassets`。不要运行旧版 `Assets/GenerateIcons.swift`，它会覆盖当前图标。
 
 此工程没有启用 App Sandbox，因为沙盒应用无法通过 `NSRunningApplication.terminate()` 请求其他 App 退出。向普通用户分发时，需在 Xcode 配置开发者签名并对 App 进行公证。
 
@@ -76,6 +78,6 @@ open "/Applications/智能退出.app"
 
 ```sh
 mkdir -p build/Tests
-swiftc SmartClose/RuleStore.swift Tests/main.swift -o build/Tests/smart-close-rules-test
-build/Tests/smart-close-rules-test
+swiftc NeatQuit/RuleStore.swift Tests/main.swift -o build/Tests/neatquit-rules-test
+build/Tests/neatquit-rules-test
 ```

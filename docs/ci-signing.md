@@ -89,7 +89,7 @@ CI 会跑大约 **3-8 分钟**（两次公证：先 .app 再 DMG）。
 本地想复现同样流程（需钥匙串里已有证书）：
 
 ```bash
-cd smart-close
+cd neatquit
 export SIGN_IDENTITY="Developer ID Application: Yin Zhenyu (ABCDE12345)"
 export TEAM_ID=ABCDE12345
 export NOTARIZE=1
@@ -174,7 +174,7 @@ gh secret set SPARKLE_ED_PRIVATE_KEY --repo yinzhenyu-su/mac-scripts < ~/sparkle
 
 ```bash
 # 校验 appcast 里的签名与 DMG 是否匹配
-echo "$SPARKLE_ED_PRIVATE_KEY" | /tmp/bin/sign_update --ed-key-file - SmartClose-v1.3.2.dmg
+echo "$SPARKLE_ED_PRIVATE_KEY" | /tmp/bin/sign_update --ed-key-file - NeatQuit-v1.3.2.dmg
 # 对比输出的 edSignature 与 appcast.xml 中的值
 ```
 
@@ -200,7 +200,7 @@ CI 里是**先传包、再改 feed**，任何一步失败都不会让用户拿�
 
 1. 构建 → 签名 → 公证 → staple
 2. 发布 GitHub Release（作为备份归档）
-3. 生成 appcast（`enclosure` 指向 `https://app.bgm.fun/SmartClose-<tag>.dmg`）
+3. 生成 appcast（`enclosure` 指向 `https://app.bgm.fun/NeatQuit-<tag>.dmg`）
 4. 上传 DMG 到 `.upload-<name>` → `RNFR/RNTO` 原子改名为正式名 → 用 HTTPS `Content-Length` 校验大小
 5. 上传 `appcast.xml` 到临时名 → 原子改名 → 用 HTTPS 回读确认含本次版本
 6. 把 appcast 提交回仓库，让仍读旧 feed（GitHub raw）的老用户也能收到
@@ -314,7 +314,7 @@ appcast 已发布的条目可以单独回填，不用重新打包：
 ```bash
 python3 scripts/make-appcast.py --appcast appcast.xml \
   --tag v1.3.4 --build 12 \
-  --dmg-url https://app.bgm.fun/SmartClose-v1.3.4.dmg \
+  --dmg-url https://app.bgm.fun/NeatQuit-v1.3.4.dmg \
   --length <appcast 里的 length> \
   --signature <appcast 里的 edSignature> \
   --notes-file release-notes/v1.3.4.md

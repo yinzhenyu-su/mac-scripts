@@ -78,14 +78,14 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
           UNIVERSAL: "1"
-        run: ./smart-close/package-dmg.sh "$RELEASE_TAG" "$BUILD_NUMBER"
+        run: ./neatquit/package-dmg.sh "$RELEASE_TAG" "$BUILD_NUMBER"
 
       # 4) Gatekeeper / 公证校验：不通过就让构建失败，别发出坏包
       - name: 校验签名与公证
         run: |
           set -euo pipefail
-          APP="smart-close/build/Build/Products/Release/智能退出.app"
-          DMG="smart-close/build/智能退出.dmg"
+          APP="neatquit/build/Build/Products/Release/智能退出.app"
+          DMG="neatquit/build/智能退出.dmg"
           codesign --verify --deep --strict --verbose=2 "$APP"
           spctl -a -vvv -t exec "$APP"
           xcrun stapler validate "$APP"
@@ -128,8 +128,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG_NAME: ${{ github.ref_name }}
-          DMG_PATH: smart-close/build/智能退出.dmg
-          RELEASE_PATH: smart-close/build/SmartClose-${{ github.ref_name }}.dmg
+          DMG_PATH: neatquit/build/智能退出.dmg
+          RELEASE_PATH: neatquit/build/NeatQuit-${{ github.ref_name }}.dmg
           NOTES: ${{ runner.temp }}/notes.md
         run: |
           cp "$DMG_PATH" "$RELEASE_PATH"
@@ -150,7 +150,7 @@ jobs:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
           TAG_NAME: ${{ github.ref_name }}
           BUILD_NUMBER: ${{ github.run_number }}
-          DMG_PATH: smart-close/build/智能退出.dmg
+          DMG_PATH: neatquit/build/智能退出.dmg
           APP_BGM_URL: ${{ secrets.APP_BGM_URL }}
         run: |
           set -euo pipefail
@@ -169,7 +169,7 @@ jobs:
             exit 1
           fi
 
-          URL="${APP_BGM_URL}/SmartClose-${TAG_NAME}.dmg"
+          URL="${APP_BGM_URL}/NeatQuit-${TAG_NAME}.dmg"
 
           # 基于远端 master 的最新 appcast 合并，避免把上一版条目丢掉
           git fetch origin master
@@ -193,7 +193,7 @@ jobs:
           FTP_PASS: ${{ secrets.APP_BGM_FTP_PASS }}
           APP_BGM_URL: ${{ secrets.APP_BGM_URL }}
           TAG_NAME: ${{ github.ref_name }}
-          DMG_PATH: smart-close/build/SmartClose-${{ github.ref_name }}.dmg
+          DMG_PATH: neatquit/build/NeatQuit-${{ github.ref_name }}.dmg
           APPCAST: ${{ runner.temp }}/appcast.xml
           KEEP_DMGS: "5"
         run: |
@@ -208,7 +208,7 @@ jobs:
               --quote "RNFR $1" --quote "RNTO $2" "${FTP}/" -o /dev/null
           }
 
-          NAME="SmartClose-${TAG_NAME}.dmg"
+          NAME="NeatQuit-${TAG_NAME}.dmg"
           LOCAL_SIZE=$(stat -f%z "$DMG_PATH")
           echo "上传 ${NAME}（${LOCAL_SIZE} 字节）…"
           put "$DMG_PATH" ".upload-${NAME}"
@@ -226,7 +226,7 @@ jobs:
           put "$APPCAST" ".appcast.xml.${TAG_NAME}"
           publish ".appcast.xml.${TAG_NAME}" "appcast.xml"
 
-          if ! curl -fsS "${APP_BGM_URL}/appcast.xml" | grep -q "SmartClose-${TAG_NAME}.dmg"; then
+          if ! curl -fsS "${APP_BGM_URL}/appcast.xml" | grep -q "NeatQuit-${TAG_NAME}.dmg"; then
             echo "✗ 线上 appcast.xml 未包含本次版本" >&2
             exit 1
           fi
@@ -234,7 +234,7 @@ jobs:
 
           # 只保留最近 KEEP_DMGS 个安装包，避免磁盘被历史版本占满
           LIST=$(curl -fsS "${AUTH[@]}" --max-time 120 "${FTP}/" \
-            | awk '{print $NF}' | grep -E '^SmartClose-v.*\.dmg$' | sort -V)
+            | awk '{print $NF}' | grep -E '^NeatQuit-v.*\.dmg$' | sort -V)
           TOTAL=$(printf '%s\n' "$LIST" | grep -c . || true)
           TOTAL=${TOTAL:-0}
           DROP=$((TOTAL - KEEP_DMGS))

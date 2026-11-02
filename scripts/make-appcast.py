@@ -6,7 +6,7 @@
     python3 scripts/make-appcast.py \
         --appcast appcast.xml \
         --tag v1.3.2 --build 7 \
-        --dmg-url https://github.com/OWNER/REPO/releases/download/v1.3.2/SmartClose-v1.3.2.dmg \
+        --dmg-url https://github.com/OWNER/REPO/releases/download/v1.3.2/NeatQuit-v1.3.2.dmg \
         --length 8123456 \
         --signature "$SIGNATURE" \
         --notes-file /tmp/notes.html

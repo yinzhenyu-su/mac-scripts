@@ -1,9 +1,9 @@
 import AppKit
 
 // The app icon uses a purple door-and-exit-arrow mark; the menu icon remains a template glyph.
-// Run from smart-close/: swift Assets/GenerateIcons.swift
+// Run from neatquit/: swift Assets/GenerateIcons.swift
 
-let assetRoot = URL(fileURLWithPath: "SmartClose/Assets.xcassets", isDirectory: true)
+let assetRoot = URL(fileURLWithPath: "NeatQuit/Assets.xcassets", isDirectory: true)
 let appIconRoot = assetRoot.appendingPathComponent("AppIcon.appiconset", isDirectory: true)
 let menuIconRoot = assetRoot.appendingPathComponent("MenuBarIcon.imageset", isDirectory: true)
 
