@@ -138,7 +138,7 @@ jobs:
             gh release edit "$TAG_NAME" --notes-file "$NOTES"
           else
             gh release create "$TAG_NAME" "$RELEASE_PATH" \
-              --title "智能退出 $TAG_NAME" \
+              --title "Neat Quit · 智能退出 $TAG_NAME" \
               --notes-file "$NOTES"
           fi
 

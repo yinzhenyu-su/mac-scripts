@@ -45,7 +45,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
             image.size = NSSize(width: 24, height: 24)
             statusItem.button?.image = image
         }
-        statusItem.button?.toolTip = "智能退出"
+        statusItem.button?.toolTip = L10n.appName
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -119,13 +119,16 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
         menu.removeAllItems()
 
         let accessibilityGranted = AXIsProcessTrusted()
-        let status = !accessibilityGranted ? "需要辅助功能权限" : (!enabled ? "已暂停" : (monitor.isRunning ? "智能退出已启用" : "事件监听启动失败"))
+        let status = L10n.status(
+            for: accessibilityGranted,
+            enabled: enabled,
+            monitorRunning: monitor.isRunning)
         let statusItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
         menu.addItem(statusItem)
         menu.addItem(.separator())
 
-        let toggle = NSMenuItem(title: "启用智能退出", action: #selector(toggleEnabled), keyEquivalent: "")
+        let toggle = NSMenuItem(title: L10n.enable, action: #selector(toggleEnabled), keyEquivalent: "")
         toggle.target = self
         toggle.state = enabled ? .on : .off
         if !accessibilityGranted {
@@ -133,7 +136,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
         }
         menu.addItem(toggle)
 
-        let keyboardToggle = NSMenuItem(title: "⌘W 智能退出", action: #selector(toggleKeyboard), keyEquivalent: "")
+        let keyboardToggle = NSMenuItem(title: L10n.keyboard, action: #selector(toggleKeyboard), keyEquivalent: "")
         keyboardToggle.target = self
         keyboardToggle.state = keyboardEnabled ? .on : .off
         if !accessibilityGranted {
@@ -143,20 +146,20 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
 
         if enabled && keyboardEnabled && accessibilityGranted && !monitor.isKeyboardRunning {
             let keyboardStatus = NSMenuItem(
-                title: CGPreflightListenEventAccess() ? "⌘W 监听启动失败" : "⌘W 需要输入监控权限",
+                title: CGPreflightListenEventAccess() ? L10n.keyboardFailed : L10n.keyboardPermissionRequired,
                 action: nil,
                 keyEquivalent: ""
             )
             keyboardStatus.isEnabled = false
             menu.addItem(keyboardStatus)
             if !CGPreflightListenEventAccess() {
-                let permission = NSMenuItem(title: "授予输入监控权限…", action: #selector(requestInputMonitoring), keyEquivalent: "")
+                let permission = NSMenuItem(title: L10n.grantInputMonitoring, action: #selector(requestInputMonitoring), keyEquivalent: "")
                 permission.target = self
                 menu.addItem(permission)
             }
         }
 
-        let login = NSMenuItem(title: "登录时启动", action: #selector(toggleLoginItem), keyEquivalent: "")
+        let login = NSMenuItem(title: L10n.login, action: #selector(toggleLoginItem), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
@@ -166,28 +169,31 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
         let isExceptedByID = bundleID.map { store.rules.contains(AppRule(match: .bundleID, value: $0)) } ?? false
         let isExceptedByName = applicationName.map { store.rules.contains(AppRule(match: .applicationName, value: $0)) } ?? false
         if !isExceptedByID && !isExceptedByName {
-            let addCurrent = NSMenuItem(title: "将 \(applicationName ?? "当前 App") 加入例外", action: #selector(addCurrentApplication), keyEquivalent: "")
+            let addCurrent = NSMenuItem(
+                title: L10n.addCurrentApp(applicationName ?? L10n.currentApp),
+                action: #selector(addCurrentApplication),
+                keyEquivalent: "")
             addCurrent.target = self
             addCurrent.isEnabled = bundleID != nil
             menu.addItem(addCurrent)
         }
 
-        let settings = NSMenuItem(title: "例外应用…", action: #selector(openSettings), keyEquivalent: "")
+        let settings = NSMenuItem(title: L10n.exceptions, action: #selector(openSettings), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
         if !accessibilityGranted {
-            let permission = NSMenuItem(title: "授予辅助功能权限…", action: #selector(requestAccessibility), keyEquivalent: "")
+            let permission = NSMenuItem(title: L10n.grantAccessibility, action: #selector(requestAccessibility), keyEquivalent: "")
             permission.target = self
             menu.addItem(permission)
         }
         menu.addItem(.separator())
 
-        let about = NSMenuItem(title: "关于智能退出", action: #selector(showAbout), keyEquivalent: "")
+        let about = NSMenuItem(title: L10n.about, action: #selector(showAbout), keyEquivalent: "")
         about.target = self
         menu.addItem(about)
 
-        let quit = NSMenuItem(title: "退出应用", action: #selector(quitApp), keyEquivalent: "")
+        let quit = NSMenuItem(title: L10n.quit, action: #selector(quitApp), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
     }
@@ -217,7 +223,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
                 defer: false
             )
             window.isReleasedWhenClosed = false
-            window.title = "例外应用设置"
+            window.title = L10n.exceptionsWindow
             window.contentView = NSHostingView(rootView: SettingsView(store: store))
             window.center()
             settingsWindow = window
@@ -239,7 +245,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
                 try SMAppService.mainApp.register()
             }
         } catch {
-            showError("无法更改登录启动设置", error)
+            showError(L10n.loginSettingsError, error)
         }
         refreshMenu()
     }
@@ -253,10 +259,10 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
 
     private func showAccessibilityRequired() {
         let alert = NSAlert()
-        alert.messageText = "需要辅助功能权限"
-        alert.informativeText = "请在系统设置的“隐私与安全性”→“辅助功能”中允许“智能退出”。授权后应用会自动重新启动。"
-        alert.addButton(withTitle: "打开系统设置")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = L10n.accessibilityTitle
+        alert.informativeText = L10n.accessibilityMessage
+        alert.addButton(withTitle: L10n.openSystemSettings)
+        alert.addButton(withTitle: L10n.cancel)
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
             requestAccessibility()
@@ -280,7 +286,7 @@ final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelega
                 backing: .buffered,
                 defer: false
             )
-            window.title = "关于智能退出"
+            window.title = L10n.aboutTitle
             window.isReleasedWhenClosed = false
             window.contentView = NSHostingView(
                 rootView: AboutView(updaterController: updaterController))
@@ -319,7 +325,7 @@ private struct AboutView: View {
         let info = Bundle.main.infoDictionary ?? [:]
         let version = info["CFBundleShortVersionString"] as? String ?? "—"
         let build = info["CFBundleVersion"] as? String ?? "—"
-        return "版本 \(version)（\(build)）"
+        return L10n.version(version, build: build)
     }
 
     var body: some View {
@@ -327,17 +333,17 @@ private struct AboutView: View {
             VStack(spacing: 8) {
                 AboutAppIcon(refreshID: iconRefreshID)
                     .frame(width: 80, height: 80)
-                Text("智能退出").font(.title2.bold())
+                Text(L10n.appName).font(.title2.bold())
                 Text(version).font(.callout).foregroundStyle(.secondary)
             }
 
             VStack(spacing: 10) {
-                Button("检查更新") {
+                Button(L10n.checkForUpdates) {
                     updaterController.checkForUpdates(nil)
                 }
                 .controlSize(.small)
 
-                Toggle("自动检查更新", isOn: $autoCheckUpdates)
+                Toggle(L10n.automaticUpdates, isOn: $autoCheckUpdates)
                     .toggleStyle(.checkbox)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -348,17 +354,17 @@ private struct AboutView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("关闭最后一个窗口时自动退出应用。")
-                    Text("支持红色关闭按钮与可选的 ⌘W；例外应用仅关闭窗口。")
+                    Text(L10n.aboutDescription1)
+                    Text(L10n.aboutDescription2)
                         .foregroundStyle(.secondary)
-                    Text("本软件需要授予辅助功能权限以识别窗口和 ⌘W 快捷键。")
+                    Text(L10n.aboutDescription3)
                         .foregroundStyle(.secondary)
                 }
 
                 Divider()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("致谢名单").font(.headline)
+                    Text(L10n.credits).font(.headline)
                     HStack(alignment: .top, spacing: 12) {
                         Link("@hahahhqyou", destination: URL(string: "https://github.com/hahahhqyou")!)
                     }
@@ -369,7 +375,7 @@ private struct AboutView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Link("项目仓库 ↗", destination: URL(string: "https://github.com/yinzhenyu-su/mac-scripts")!)
+            Link(L10n.repository, destination: URL(string: "https://github.com/yinzhenyu-su/mac-scripts")!)
                 .font(.callout)
         }
         .padding(28)
