@@ -12,7 +12,7 @@
 
 - 增加 `CloseMonitor` 的统一日志：仅记录触发来源、PID、目标窗口 ID、每次检查的窗口数量、是否请求退出及请求是否被接受；不记录窗口标题或内容。`-1` 表示该次窗口数量不可读取。
 - 增加连续两次确认、跨 Space 有另一个窗口和残留目标窗口的规则测试。本轮不改变已验证的退出判定条件。
-- 排查时可运行：`/usr/bin/log stream --info --style compact --predicate 'subsystem == "com.yinzhenyu.smartclose" && category == "CloseMonitor"'`。排查结束后停止命令；日志中含 PID 和窗口 ID，不要直接公开完整日志。
+- 排查时可运行：`/usr/bin/log stream --info --style compact --predicate 'subsystem == "fun.bgm.neatquit" && category == "CloseMonitor"'`。排查结束后停止命令；日志中含 PID 和窗口 ID，不要直接公开完整日志。
 
 ## QSpace Pro 的 `⌘W` 现场（2026-10-11）
 

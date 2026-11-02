@@ -7,7 +7,7 @@
 
 | 项 | 现状 |
 |---|---|
-| 分发渠道 | GitHub Releases，tag `vX.Y.Z`，附件 `SmartClose-vX.Y.Z.dmg`（CI 已 Developer ID 签名 + 公证） |
+| 分发渠道 | GitHub Releases，tag `vX.Y.Z`，附件 `NeatQuit-vX.Y.Z.dmg`（CI 已 Developer ID 签名 + 公证） |
 | 版本号 | `Info.plist` ← `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`（CI 用 tag + run_number 注入） |
 | 关于页 | `AboutView`（SwiftUI，440×460 NSWindow）：图标 / 名称 / `版本 x.y.z（build）` / 说明 / 致谢 / 仓库链接 |
 | 设置窗口 | 只有「例外应用」列表，没有通用设置分区 |
@@ -98,8 +98,8 @@
 ### 5.1 集成
 
 - SPM：`https://github.com/sparkle-project/Sparkle`，major `2`
-- Target `SmartClose` 增加 `Sparkle`
-- `SmartCloseApp.swift` 持有控制器：
+- Target `NeatQuit` 增加 `Sparkle`
+- `NeatQuitApp.swift` 持有控制器：
 
 ```swift
 private let updaterController = SPUStandardUpdaterController(
@@ -129,7 +129,7 @@ private let updaterController = SPUStandardUpdaterController(
       <sparkle:shortVersionString>1.3.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
       <description><![CDATA[ <html>…Release body…</html> ]]></description>
-      <enclosure url="https://github.com/yinzhenyu-su/mac-scripts/releases/download/v1.3.2/SmartClose-v1.3.2.dmg"
+      <enclosure url="https://github.com/yinzhenyu-su/mac-scripts/releases/download/v1.3.2/NeatQuit-v1.3.2.dmg"
                  sparkle:edSignature="…" length="…" type="application/octet-stream"/>
     </item>
   </channel>
@@ -156,9 +156,9 @@ private let updaterController = SPUStandardUpdaterController(
 
 | 文件 | 内容 |
 |---|---|
-| `SmartClose/SmartCloseApp.swift` | 创建 `SPUStandardUpdaterController`；AboutView 按钮/复选框；窗口 460 → 520 |
-| `SmartClose/Info.plist` | 4 个 `SU*` key |
-| `SmartClose.xcodeproj/project.pbxproj` | Sparkle SPM 依赖 |
+| `NeatQuit/NeatQuitApp.swift` | 创建 `SPUStandardUpdaterController`；AboutView 按钮/复选框；窗口 460 → 520 |
+| `NeatQuit/Info.plist` | 4 个 `SU*` key |
+| `NeatQuit.xcodeproj/project.pbxproj` | Sparkle SPM 依赖 |
 | `scripts/make-appcast.py` | 生成/合并 appcast（纯 Python，可测） |
 | `.github/workflows/release.yml` | 签名 + 生成 + 提交 appcast |
 | `docs/ci-signing.md` | 补 Sparkle 密钥与 appcast 流程 |

@@ -14,6 +14,6 @@
 
 [查看 `quit-on-close` 脚本详细排查记录](quit-on-close/debug-log.md)
 
-### `smart-close`（智能退出菜单栏 App）
+### `neatquit`（智能退出菜单栏 App）
 
-原生 macOS 菜单栏 App，支持点击红色关闭按钮时智能退出，以及可选的 `⌘W` 智能退出。构建、安装和权限设置见 [智能退出使用说明](smart-close/README.md)。
+原生 macOS 菜单栏 App，支持点击红色关闭按钮时智能退出，以及可选的 `⌘W` 智能退出。构建、安装和权限设置见 [智能退出使用说明](neatquit/README.md)。

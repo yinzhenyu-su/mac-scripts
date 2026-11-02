@@ -6,7 +6,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10000000000000000000001 /* SmartCloseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* SmartCloseApp.swift */; };
+		A10000000000000000000001 /* NeatQuitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* NeatQuitApp.swift */; };
 		A10000000000000000000002 /* CloseMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* CloseMonitor.swift */; };
 		A10000000000000000000003 /* RuleStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* RuleStore.swift */; };
 		A10000000000000000000004 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* SettingsView.swift */; };
@@ -19,7 +19,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A20000000000000000000001 /* SmartCloseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartCloseApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000001 /* NeatQuitApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NeatQuitApp.swift; sourceTree = "<group>"; };
 		A20000000000000000000002 /* CloseMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloseMonitor.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* RuleStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleStore.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
@@ -40,21 +40,21 @@
 /* End PBXVariantGroup section */
 
 /* Begin PBXGroup section */
-		A30000000000000000000001 = {isa = PBXGroup; children = (A30000000000000000000002 /* SmartClose */, A30000000000000000000003 /* Products */); sourceTree = "<group>"; };
-		A30000000000000000000002 /* SmartClose */ = {isa = PBXGroup; children = (A20000000000000000000001 /* SmartCloseApp.swift */, A20000000000000000000002 /* CloseMonitor.swift */, A20000000000000000000003 /* RuleStore.swift */, A20000000000000000000004 /* SettingsView.swift */, A20000000000000000000009 /* Localization.swift */, A20000000000000000000005 /* Info.plist */, A20000000000000000000010 /* InfoPlist.strings */, A20000000000000000000013 /* Localizable.strings */, A20000000000000000000007 /* Assets.xcassets */, A20000000000000000000008 /* AppIcon.icon */); path = SmartClose; sourceTree = "<group>"; };
+		A30000000000000000000001 = {isa = PBXGroup; children = (A30000000000000000000002 /* NeatQuit */, A30000000000000000000003 /* Products */); sourceTree = "<group>"; };
+		A30000000000000000000002 /* NeatQuit */ = {isa = PBXGroup; children = (A20000000000000000000001 /* NeatQuitApp.swift */, A20000000000000000000002 /* CloseMonitor.swift */, A20000000000000000000003 /* RuleStore.swift */, A20000000000000000000004 /* SettingsView.swift */, A20000000000000000000009 /* Localization.swift */, A20000000000000000000005 /* Info.plist */, A20000000000000000000010 /* InfoPlist.strings */, A20000000000000000000013 /* Localizable.strings */, A20000000000000000000007 /* Assets.xcassets */, A20000000000000000000008 /* AppIcon.icon */); path = NeatQuit; sourceTree = "<group>"; };
 		A30000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000006 /* 智能退出.app */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A40000000000000000000001 /* SmartClose */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */; buildPhases = (A50000000000000000000003 /* Frameworks */, A50000000000000000000001 /* Sources */, A50000000000000000000002 /* Resources */); buildRules = (); dependencies = (); packageProductDependencies = (A90000000000000000000001 /* Sparkle */, ); name = SmartClose; productName = "智能退出"; productReference = A20000000000000000000006 /* 智能退出.app */; productType = "com.apple.product-type.application"; };
+		A40000000000000000000001 /* NeatQuit */ = {isa = PBXNativeTarget; buildConfigurationList = A60000000000000000000002 /* Build configuration list for PBXNativeTarget "NeatQuit" */; buildPhases = (A50000000000000000000003 /* Frameworks */, A50000000000000000000001 /* Sources */, A50000000000000000000002 /* Resources */); buildRules = (); dependencies = (); packageProductDependencies = (A90000000000000000000001 /* Sparkle */, ); name = NeatQuit; productName = "智能退出"; productReference = A20000000000000000000006 /* 智能退出.app */; productType = "com.apple.product-type.application"; };
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A40000000000000000000002 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2700; TargetAttributes = {A40000000000000000000001 = {CreatedOnToolsVersion = 27.0; }; }; }; buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "SmartClose" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = zh-Hans; hasScannedForEncodings = 0; knownRegions = (en, "zh-Hans", Base); packageReferences = (A80000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */, ); mainGroup = A30000000000000000000001; productRefGroup = A30000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A40000000000000000000001 /* SmartClose */); };
+		A40000000000000000000002 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2700; TargetAttributes = {A40000000000000000000001 = {CreatedOnToolsVersion = 27.0; }; }; }; buildConfigurationList = A60000000000000000000001 /* Build configuration list for PBXProject "NeatQuit" */; compatibilityVersion = "Xcode 14.0"; developmentRegion = zh-Hans; hasScannedForEncodings = 0; knownRegions = (en, "zh-Hans", Base); packageReferences = (A80000000000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */, ); mainGroup = A30000000000000000000001; productRefGroup = A30000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A40000000000000000000001 /* NeatQuit */); };
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A50000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* SmartCloseApp.swift in Sources */, A10000000000000000000002 /* CloseMonitor.swift in Sources */, A10000000000000000000003 /* RuleStore.swift in Sources */, A10000000000000000000004 /* SettingsView.swift in Sources */, A10000000000000000000007 /* Localization.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A50000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* NeatQuitApp.swift in Sources */, A10000000000000000000002 /* CloseMonitor.swift in Sources */, A10000000000000000000003 /* RuleStore.swift in Sources */, A10000000000000000000004 /* SettingsView.swift in Sources */, A10000000000000000000007 /* Localization.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,13 +68,13 @@
 /* Begin XCBuildConfiguration section */
 		A70000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CODE_SIGN_IDENTITY = "-"; CODE_SIGNING_ALLOWED = YES; MACOSX_DEPLOYMENT_TARGET = 13.0; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
 		A70000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; CODE_SIGN_IDENTITY = "-"; CODE_SIGNING_ALLOWED = YES; MACOSX_DEPLOYMENT_TARGET = 13.0; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 5.0; }; name = Release; };
-		A70000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = SmartClose/Info.plist; MARKETING_VERSION = 1.2.1; CURRENT_PROJECT_VERSION = 5; PRODUCT_BUNDLE_IDENTIFIER = com.yinzhenyu.smartclose; PRODUCT_NAME = "智能退出"; SWIFT_EMIT_LOC_STRINGS = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); }; name = Debug; };
-		A70000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = SmartClose/Info.plist; MARKETING_VERSION = 1.2.1; CURRENT_PROJECT_VERSION = 5; PRODUCT_BUNDLE_IDENTIFIER = com.yinzhenyu.smartclose; PRODUCT_NAME = "智能退出"; SWIFT_EMIT_LOC_STRINGS = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); }; name = Release; };
+		A70000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = NeatQuit/Info.plist; MARKETING_VERSION = 1.2.1; CURRENT_PROJECT_VERSION = 5; PRODUCT_BUNDLE_IDENTIFIER = fun.bgm.neatquit; PRODUCT_NAME = "智能退出"; SWIFT_EMIT_LOC_STRINGS = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); }; name = Debug; };
+		A70000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ENABLE_APP_SANDBOX = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = NeatQuit/Info.plist; MARKETING_VERSION = 1.2.1; CURRENT_PROJECT_VERSION = 5; PRODUCT_BUNDLE_IDENTIFIER = fun.bgm.neatquit; PRODUCT_NAME = "智能退出"; SWIFT_EMIT_LOC_STRINGS = YES; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/../Frameworks"); }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A60000000000000000000001 /* Build configuration list for PBXProject "SmartClose" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000001 /* Debug */, A70000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-		A60000000000000000000002 /* Build configuration list for PBXNativeTarget "SmartClose" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000003 /* Debug */, A70000000000000000000004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A60000000000000000000001 /* Build configuration list for PBXProject "NeatQuit" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000001 /* Debug */, A70000000000000000000002 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A60000000000000000000002 /* Build configuration list for PBXNativeTarget "NeatQuit" */ = {isa = XCConfigurationList; buildConfigurations = (A70000000000000000000003 /* Debug */, A70000000000000000000004 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */

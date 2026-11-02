@@ -3,4 +3,4 @@
 .gemini-clipboard
 *.pyc
 __pycache__/
-smart-close/build/
+neatquit/build/

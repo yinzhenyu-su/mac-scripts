@@ -5,11 +5,11 @@ import Sparkle
 import SwiftUI
 
 @main
-struct SmartCloseMain {
+struct NeatQuitMain {
     static func main() {
         MainActor.assumeIsolated {
             let app = NSApplication.shared
-            let delegate = SmartCloseAppDelegate()
+            let delegate = NeatQuitAppDelegate()
             app.delegate = delegate
             app.run()
         }
@@ -17,7 +17,7 @@ struct SmartCloseMain {
 }
 
 @MainActor
-final class SmartCloseAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let monitor = CloseMonitor()
     private let store = RuleStore()
     private let updaterController = SPUStandardUpdaterController(
