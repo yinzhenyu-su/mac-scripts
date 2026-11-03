@@ -46,6 +46,7 @@ final class LicenseManager: ObservableObject {
     private let legacyAccount = "license.legacyPro"
     private let migrationAccount = "license.migrated"
     private let apiBaseKey = "license.apiBase"
+    private let trialDaysKey = "license.trialDays"
 
     private var apiBase: URL {
         if let override = UserDefaults.standard.string(forKey: apiBaseKey), let url = URL(string: override) {
@@ -195,8 +196,29 @@ final class LicenseManager: ObservableObject {
         }
 
         let elapsed = Calendar.current.dateComponents([.day], from: start, to: Date()).day ?? 0
-        let left = max(0, Self.trialDays - elapsed)
+        let left = max(0, effectiveTrialDays - elapsed)
         tier = left > 0 ? .trial(daysLeft: left) : .free
+    }
+
+    /// 服务端可调整试用天数；失败时沿用本地缓存或默认值。
+    private var effectiveTrialDays: Int {
+        let cached = UserDefaults.standard.integer(forKey: trialDaysKey)
+        return cached > 0 ? cached : Self.trialDays
+    }
+
+    func refreshConfiguration() async {
+        do {
+            let (data, response) = try await URLSession.shared.data(
+                from: apiBase.appendingPathComponent("config"))
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return }
+            let config = try JSONDecoder().decode(RemoteConfig.self, from: data)
+            guard let days = config.trialDays, days > 0 else { return }
+            let previous = UserDefaults.standard.integer(forKey: trialDaysKey)
+            UserDefaults.standard.set(days, forKey: trialDaysKey)
+            if previous != days { loadTier() }
+        } catch {
+            // 网络失败时保留本地缓存
+        }
     }
 
     private func shouldValidateNow() -> Bool {
@@ -281,6 +303,11 @@ final class LicenseManager: ObservableObject {
         let name = Host.current().localizedName ?? "Mac"
         return String(name.prefix(80))
     }
+}
+
+private struct RemoteConfig: Decodable {
+    let trialDays: Int?
+    let activationLimit: Int?
 }
 
 private struct LicenseResponse: Decodable {

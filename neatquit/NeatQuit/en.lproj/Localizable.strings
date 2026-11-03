@@ -57,7 +57,10 @@
 "license.deactivate.title" = "Remove this Mac's activation?";
 "license.deactivate.message" = "⌘W smart quit and exception apps will stop working. You can reactivate anytime with the same key.";
 "license.purchase.title" = "Buy Neat Quit Pro";
-"license.purchase.detail" = "$4.99 one-time, up to 3 Macs, includes all 1.x updates.";
+"license.purchase.detail" = "Unlocks:";
+"license.feature.keyboard" = "⌘W smart quit";
+"license.feature.exceptions" = "Exception apps list";
+"license.feature.devices" = "Up to 3 Macs, includes all 1.x updates";
 "license.purchase.button" = "Continue to Purchase";
 "license.purchase.note" = "Your license key appears on the order page and is emailed to you.";
 "license.error.format" = "That key format is invalid. Use five groups of five characters.";
