@@ -57,7 +57,10 @@
 "license.deactivate.title" = "移除这台设备的授权？";
 "license.deactivate.message" = "移除后 ⌘W 智能退出与例外列表将不可用，可随时用同一密钥重新激活。";
 "license.purchase.title" = "购买 Neat Quit Pro";
-"license.purchase.detail" = "$4.99 一次买断，最多 3 台 Mac，包含后续 1.x 更新。";
+"license.purchase.detail" = "解锁以下功能：";
+"license.feature.keyboard" = "⌘W 智能退出";
+"license.feature.exceptions" = "例外应用列表";
+"license.feature.devices" = "最多 3 台 Mac，包含后续 1.x 更新";
 "license.purchase.button" = "前往购买";
 "license.purchase.note" = "购买后许可证密钥会显示在订单页，并发送到邮箱。";
 "license.error.format" = "密钥格式不正确，应为 5 组、每组 5 位字符。";

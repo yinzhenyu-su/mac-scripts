@@ -122,6 +122,13 @@ struct LicenseView: View {
                 Text(L10n.licensePurchaseDetail)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(L10n.licenseFeatureKeyboard)
+                    Text(L10n.licenseFeatureExceptions)
+                    Text(L10n.licenseFeatureDevices)
+                }
+                .font(.callout)
+                .foregroundStyle(.secondary)
                 Button(L10n.licensePurchaseButton) {
                     NSWorkspace.shared.open(LicenseManager.purchaseURL)
                 }

@@ -64,6 +64,15 @@ loadTier()
 | `license.lastValidatedAt` | 上次校验时间戳 |
 | `license.apiBase` | 调试用 API 覆盖 |
 
+## 远程配置
+
+启动时 `LicenseManager.refreshConfiguration()` 会请求 `GET /license-api/config`，读取：
+
+- `trialDays`：写入 `license.trialDays`，失败时沿用缓存或默认 7
+- `activationLimit`：用于展示，实际限制仍由 Creem 许可证执行
+
+改试用天数只需要改服务器 `.env` 的 `TRIAL_DAYS`，不需要发新版。
+
 ## 老用户判定
 
 1.4.0 首次启动时，只要存在以下任一偏好，就写入 `license.legacyPro=1`：
