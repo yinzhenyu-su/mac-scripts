@@ -77,3 +77,12 @@
 "menu.keyboard.pro" = "⌘W Neat Quit (Pro)";
 "menu.exceptions.pro" = "Exception Apps… (Pro)";
 "menu.addCurrent.pro" = "Add %@ to Exceptions (Pro)";
+
+"menu.edit" = "Edit";
+"menu.undo" = "Undo";
+"menu.redo" = "Redo";
+"menu.cut" = "Cut";
+"menu.copy" = "Copy";
+"menu.paste" = "Paste";
+"menu.selectAll" = "Select All";
+"license.paste" = "Paste";

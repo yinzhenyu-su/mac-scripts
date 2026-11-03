@@ -96,6 +96,12 @@ struct LicenseView: View {
                     Button(L10n.licenseActivate) { activate() }
                         .buttonStyle(.borderedProminent)
                         .disabled(manager.isWorking || LicenseManager.normalize(input).isEmpty)
+                    Button(L10n.licensePaste) {
+                        if let value = NSPasteboard.general.string(forType: .string) {
+                            input = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    }
+                    .disabled(manager.isWorking)
                     if manager.isWorking {
                         ProgressView().controlSize(.small)
                     }

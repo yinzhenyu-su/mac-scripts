@@ -77,3 +77,12 @@
 "menu.keyboard.pro" = "⌘W 智能退出（Pro）";
 "menu.exceptions.pro" = "例外应用…（Pro）";
 "menu.addCurrent.pro" = "将 %@ 加入例外（Pro）";
+
+"menu.edit" = "编辑";
+"menu.undo" = "撤销";
+"menu.redo" = "重做";
+"menu.cut" = "剪切";
+"menu.copy" = "拷贝";
+"menu.paste" = "粘贴";
+"menu.selectAll" = "全选";
+"license.paste" = "粘贴";
