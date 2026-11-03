@@ -44,6 +44,65 @@ enum L10n {
     static let okay = text("common.okay")
     static let chooseAppMessage = text("settings.chooseAppMessage")
 
+    static let licenseProTitle = text("license.pro.title")
+    static let licenseProDetail = text("license.pro.detail")
+    static let licenseFreeTitle = text("license.free.title")
+    static let licenseFreeDetail = text("license.free.detail")
+    static let licenseTrialDetail = text("license.trial.detail")
+    static let licenseKeyLabel = text("license.key.label")
+    static let licenseInputLabel = text("license.input.label")
+    static let licenseInputPlaceholder = text("license.input.placeholder")
+    static let licenseActivate = text("license.activate")
+    static let licenseDeactivate = text("license.deactivate")
+    static let licenseRefresh = text("license.refresh")
+    static let licenseDeactivateConfirmTitle = text("license.deactivate.title")
+    static let licenseDeactivateConfirmMessage = text("license.deactivate.message")
+    static let licensePurchaseTitle = text("license.purchase.title")
+    static let licensePurchaseDetail = text("license.purchase.detail")
+    static let licensePurchaseButton = text("license.purchase.button")
+    static let licensePurchaseNote = text("license.purchase.note")
+    static let licenseErrorFormat = text("license.error.format")
+    static let licenseErrorInvalid = text("license.error.invalid")
+    static let licenseErrorLimit = text("license.error.limit")
+    static let licenseErrorExpired = text("license.error.expired")
+    static let licenseErrorDisabled = text("license.error.disabled")
+    static let licenseErrorInactive = text("license.error.inactive")
+    static let licenseErrorRate = text("license.error.rate")
+    static let licenseErrorNetwork = text("license.error.network")
+    static let licenseErrorGeneric = text("license.error.generic")
+    static let licenseMenuPro = text("menu.license.pro")
+    static let licenseMenuFree = text("menu.license.free")
+    static let licenseMenuUnlock = text("menu.license.unlock")
+    static let licenseMenuManage = text("menu.license.manage")
+    static let keyboardPro = text("menu.keyboard.pro")
+    static let exceptionsPro = text("menu.exceptions.pro")
+    static let addCurrentPro = text("menu.addCurrent.pro")
+
+    static func licenseTrialTitle(_ days: Int) -> String {
+        String(format: text("license.trial.title"), days)
+    }
+
+    static func licenseMenuTrial(_ days: Int) -> String {
+        String(format: text("menu.license.trial"), days)
+    }
+
+    static func licenseActivationCount(_ used: Int, _ limit: Int) -> String {
+        String(format: text("license.activation.count"), used, limit)
+    }
+
+    static func keyboardTitle(pro: Bool) -> String {
+        pro ? keyboard : keyboardPro
+    }
+
+    static func exceptionsTitle(pro: Bool) -> String {
+        pro ? exceptions : exceptionsPro
+    }
+
+    static func addCurrentAppTitle(_ name: String, pro: Bool) -> String {
+        String(format: pro ? text("menu.addCurrent") : addCurrentPro, name)
+    }
+
+
     static func status(for accessibilityGranted: Bool, enabled: Bool, monitorRunning: Bool) -> String {
         if !accessibilityGranted { return accessibilityRequired }
         if !enabled { return paused }

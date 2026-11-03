@@ -16,6 +16,8 @@
 		A10000000000000000000010 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* InfoPlist.strings */; };
 		A10000000000000000000011 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* Localizable.strings */; };
 		A10000000000000000000009 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A90000000000000000000001 /* Sparkle */; };
+		A10000000000000000000012 /* LicenseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* LicenseManager.swift */; };
+		A10000000000000000000013 /* LicenseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* LicenseView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +30,8 @@
 		A20000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A20000000000000000000008 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		A20000000000000000000009 /* Localization.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localization.swift; sourceTree = "<group>"; };
+		A20000000000000000000016 /* LicenseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseManager.swift; sourceTree = "<group>"; };
+		A20000000000000000000017 /* LicenseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicenseView.swift; sourceTree = "<group>"; };
 		A20000000000000000000011 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		A20000000000000000000012 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A20000000000000000000014 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
@@ -41,7 +45,7 @@
 
 /* Begin PBXGroup section */
 		A30000000000000000000001 = {isa = PBXGroup; children = (A30000000000000000000002 /* NeatQuit */, A30000000000000000000003 /* Products */); sourceTree = "<group>"; };
-		A30000000000000000000002 /* NeatQuit */ = {isa = PBXGroup; children = (A20000000000000000000001 /* NeatQuitApp.swift */, A20000000000000000000002 /* CloseMonitor.swift */, A20000000000000000000003 /* RuleStore.swift */, A20000000000000000000004 /* SettingsView.swift */, A20000000000000000000009 /* Localization.swift */, A20000000000000000000005 /* Info.plist */, A20000000000000000000010 /* InfoPlist.strings */, A20000000000000000000013 /* Localizable.strings */, A20000000000000000000007 /* Assets.xcassets */, A20000000000000000000008 /* AppIcon.icon */); path = NeatQuit; sourceTree = "<group>"; };
+		A30000000000000000000002 /* NeatQuit */ = {isa = PBXGroup; children = (A20000000000000000000001 /* NeatQuitApp.swift */, A20000000000000000000002 /* CloseMonitor.swift */, A20000000000000000000003 /* RuleStore.swift */, A20000000000000000000004 /* SettingsView.swift */, A20000000000000000000009 /* Localization.swift */, A20000000000000000000016 /* LicenseManager.swift */, A20000000000000000000017 /* LicenseView.swift */, A20000000000000000000005 /* Info.plist */, A20000000000000000000010 /* InfoPlist.strings */, A20000000000000000000013 /* Localizable.strings */, A20000000000000000000007 /* Assets.xcassets */, A20000000000000000000008 /* AppIcon.icon */); path = NeatQuit; sourceTree = "<group>"; };
 		A30000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000006 /* 智能退出.app */); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -54,7 +58,7 @@
 /* End PBXProject section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A50000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* NeatQuitApp.swift in Sources */, A10000000000000000000002 /* CloseMonitor.swift in Sources */, A10000000000000000000003 /* RuleStore.swift in Sources */, A10000000000000000000004 /* SettingsView.swift in Sources */, A10000000000000000000007 /* Localization.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A50000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001 /* NeatQuitApp.swift in Sources */, A10000000000000000000002 /* CloseMonitor.swift in Sources */, A10000000000000000000003 /* RuleStore.swift in Sources */, A10000000000000000000004 /* SettingsView.swift in Sources */, A10000000000000000000007 /* Localization.swift in Sources */, A10000000000000000000012 /* LicenseManager.swift in Sources */, A10000000000000000000013 /* LicenseView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
