@@ -44,6 +44,15 @@ enum L10n {
     static let okay = text("common.okay")
     static let chooseAppMessage = text("settings.chooseAppMessage")
 
+    static let menuEdit = text("menu.edit")
+    static let menuUndo = text("menu.undo")
+    static let menuRedo = text("menu.redo")
+    static let menuCut = text("menu.cut")
+    static let menuCopy = text("menu.copy")
+    static let menuPaste = text("menu.paste")
+    static let menuSelectAll = text("menu.selectAll")
+    static let licensePaste = text("license.paste")
+
     static let licenseProTitle = text("license.pro.title")
     static let licenseProDetail = text("license.pro.detail")
     static let licenseFreeTitle = text("license.free.title")

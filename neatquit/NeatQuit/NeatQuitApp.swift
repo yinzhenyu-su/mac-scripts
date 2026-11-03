@@ -37,6 +37,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        installEditMenu()
         monitor.updateRules(store.rules)
         monitor.setKeyboardEnabled(license.isEntitled && keyboardEnabled)
         store.onChange = { [weak self] rules in self?.monitor.updateRules(rules) }
@@ -64,6 +65,27 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         )
 
         Task { await license.validateOnLaunch() }
+    }
+
+    /// 菜单栏应用默认没有主菜单，文本输入框收不到 Cmd+C/V/A。
+    /// 安装一个隐藏的 Edit 菜单，让标准编辑快捷键沿响应链生效。
+    private func installEditMenu() {
+        let mainMenu = NSMenu()
+        let editRoot = NSMenuItem(title: L10n.menuEdit, action: nil, keyEquivalent: "")
+        let editMenu = NSMenu(title: L10n.menuEdit)
+        editRoot.submenu = editMenu
+
+        editMenu.addItem(withTitle: L10n.menuUndo, action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = editMenu.addItem(withTitle: L10n.menuRedo, action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        editMenu.addItem(.separator())
+        editMenu.addItem(withTitle: L10n.menuCut, action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        editMenu.addItem(withTitle: L10n.menuCopy, action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        editMenu.addItem(withTitle: L10n.menuPaste, action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        editMenu.addItem(withTitle: L10n.menuSelectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+
+        mainMenu.addItem(editRoot)
+        NSApp.mainMenu = mainMenu
     }
 
     @objc private func checkAccessibilityAuthorization() {
