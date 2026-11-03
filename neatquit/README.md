@@ -81,3 +81,26 @@ mkdir -p build/Tests
 swiftc NeatQuit/RuleStore.swift Tests/main.swift -o build/Tests/neatquit-rules-test
 build/Tests/neatquit-rules-test
 ```
+
+## 许可证与付费（1.4.0 起）
+
+Neat Quit 采用「免费 + Pro 买断」：
+
+- 免费版：红色关闭按钮智能退出、登录时启动、菜单栏开关
+- Pro：⌘W 智能退出、例外应用列表
+- 新用户首次启动获得 7 天全功能试用
+- 1.3.6 及更早版本中用过 ⌘W、例外列表或主开关的用户，升级后自动保留 Pro
+
+授权使用 Creem 的 License Key，客户端只访问 `https://bgm.fun/license-api/`，Creem API key 仅保存在服务端。服务端代码在 `bgm.fun` 仓库的 `license-api/`。
+
+```sh
+curl -s https://bgm.fun/license-api/health
+```
+
+本地联调可把 API 地址临时指向本地服务：
+
+```sh
+defaults write fun.bgm.neatquit license.apiBase http://127.0.0.1:3100
+```
+
+发版时版本号取自 tag，例如 `v1.4.0`；构建号由 CI 运行编号决定。

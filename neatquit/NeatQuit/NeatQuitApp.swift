@@ -25,6 +25,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
     private var aboutWindow: NSWindow?
+    private var licenseWindow: NSWindow?
+    private let license = LicenseManager.shared
     private var lastActiveApplication: NSRunningApplication?
     private var enabled = UserDefaults.standard.object(forKey: "enabled") as? Bool ?? true
     private var keyboardEnabled = UserDefaults.standard.bool(forKey: "keyboardEnabled")
@@ -36,8 +38,9 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         monitor.updateRules(store.rules)
-        monitor.setKeyboardEnabled(keyboardEnabled)
+        monitor.setKeyboardEnabled(license.isEntitled && keyboardEnabled)
         store.onChange = { [weak self] rules in self?.monitor.updateRules(rules) }
+        license.onChange = { [weak self] _ in self?.applyLicenseState() }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let image = NSImage(named: "MenuBarIcon") {
@@ -59,6 +62,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             userInfo: nil,
             repeats: true
         )
+
+        Task { await license.validateOnLaunch() }
     }
 
     @objc private func checkAccessibilityAuthorization() {
@@ -126,6 +131,17 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let statusItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
         statusItem.isEnabled = false
         menu.addItem(statusItem)
+
+        let licenseStatus = NSMenuItem(title: licenseSummaryTitle, action: nil, keyEquivalent: "")
+        licenseStatus.isEnabled = false
+        menu.addItem(licenseStatus)
+
+        if !license.hasPro {
+            let unlock = NSMenuItem(title: L10n.licenseMenuUnlock, action: #selector(openLicenseWindow), keyEquivalent: "")
+            unlock.target = self
+            menu.addItem(unlock)
+        }
+
         menu.addItem(.separator())
 
         let toggle = NSMenuItem(title: L10n.enable, action: #selector(toggleEnabled), keyEquivalent: "")
@@ -136,9 +152,9 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         menu.addItem(toggle)
 
-        let keyboardToggle = NSMenuItem(title: L10n.keyboard, action: #selector(toggleKeyboard), keyEquivalent: "")
+        let keyboardToggle = NSMenuItem(title: L10n.keyboardTitle(pro: license.isEntitled), action: #selector(toggleKeyboard), keyEquivalent: "")
         keyboardToggle.target = self
-        keyboardToggle.state = keyboardEnabled ? .on : .off
+        keyboardToggle.state = license.isEntitled && keyboardEnabled ? .on : .off
         if !accessibilityGranted {
             keyboardToggle.attributedTitle = NSAttributedString(string: keyboardToggle.title, attributes: [.foregroundColor: NSColor.disabledControlTextColor])
         }
@@ -170,7 +186,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let isExceptedByName = applicationName.map { store.rules.contains(AppRule(match: .applicationName, value: $0)) } ?? false
         if !isExceptedByID && !isExceptedByName {
             let addCurrent = NSMenuItem(
-                title: L10n.addCurrentApp(applicationName ?? L10n.currentApp),
+                title: L10n.addCurrentAppTitle(applicationName ?? L10n.currentApp, pro: license.isEntitled),
                 action: #selector(addCurrentApplication),
                 keyEquivalent: "")
             addCurrent.target = self
@@ -178,7 +194,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(addCurrent)
         }
 
-        let settings = NSMenuItem(title: L10n.exceptions, action: #selector(openSettings), keyEquivalent: "")
+        let settings = NSMenuItem(title: L10n.exceptionsTitle(pro: license.isEntitled), action: #selector(openExceptionsWindow), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
@@ -188,6 +204,10 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(permission)
         }
         menu.addItem(.separator())
+
+        let licenseItem = NSMenuItem(title: L10n.licenseMenuManage, action: #selector(openLicenseWindow), keyEquivalent: "")
+        licenseItem.target = self
+        menu.addItem(licenseItem)
 
         let about = NSMenuItem(title: L10n.about, action: #selector(showAbout), keyEquivalent: "")
         about.target = self
@@ -207,6 +227,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func toggleKeyboard() {
+        guard license.isEntitled else { openLicenseWindow(); return }
         guard AXIsProcessTrusted() else { showAccessibilityRequired(); return }
         keyboardEnabled.toggle()
         UserDefaults.standard.set(keyboardEnabled, forKey: "keyboardEnabled")
@@ -214,7 +235,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         refreshMenu()
     }
 
-    @objc private func openSettings() {
+    @objc private func openExceptionsWindow() {
+        guard license.isEntitled else { openLicenseWindow(); return }
         if settingsWindow == nil {
             let window = NSWindow(
                 contentRect: NSRect(x: 0, y: 0, width: 560, height: 440),
@@ -233,6 +255,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func addCurrentApplication() {
+        guard license.isEntitled else { openLicenseWindow(); return }
         guard let bundleID = lastActiveApplication?.bundleIdentifier else { return }
         store.addApplication(bundleID: bundleID)
     }
@@ -275,6 +298,37 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         } else if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent") {
             NSWorkspace.shared.open(url)
         }
+        refreshMenu()
+    }
+
+    @objc private func openLicenseWindow() {
+        if licenseWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 460, height: 380),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = L10n.licenseMenuManage
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: LicenseView(manager: license))
+            window.center()
+            licenseWindow = window
+        }
+        licenseWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private var licenseSummaryTitle: String {
+        switch license.tier {
+        case .pro: return L10n.licenseMenuPro
+        case .trial(let days): return L10n.licenseMenuTrial(days)
+        case .free: return L10n.licenseMenuFree
+        }
+    }
+
+    private func applyLicenseState() {
+        monitor.setKeyboardEnabled(license.isEntitled && keyboardEnabled)
         refreshMenu()
     }
 
