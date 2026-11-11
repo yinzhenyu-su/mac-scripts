@@ -13,13 +13,13 @@ final class CloseMonitor {
     private var pendingClose: Target?
     private var pendingFullScreenClose: Target?
     private var fullScreenRequestID = 0
-    private var rules: Set<AppRule> = []
+    private var policy = RulePolicy.default
 
     var isRunning: Bool { eventTap != nil }
     var isKeyboardRunning: Bool { keyboardEventTap != nil }
 
-    func updateRules(_ rules: Set<AppRule>) {
-        self.rules = rules
+    func updatePolicy(_ policy: RulePolicy) {
+        self.policy = policy
     }
 
     func setKeyboardEnabled(_ enabled: Bool) {
@@ -130,7 +130,7 @@ final class CloseMonitor {
                 bundleID: application.bundleIdentifier,
                 applicationName: application.localizedName,
                 isStandardWindow: true,
-                rules: rules
+                policy: policy
             ), let visibleWindowCount = visibleWindowCount(for: application.processIdentifier),
                visibleWindowCount > 0,
                let closingWindowID = screenSizedWindowID(for: application.processIdentifier) else { return Unmanaged.passUnretained(event) }
@@ -148,7 +148,7 @@ final class CloseMonitor {
             applicationName: application.localizedName,
             isStandardWindow: true,
             standardWindowCount: standardWindowCount,
-            rules: rules
+            policy: policy
         )
         guard initialAction == .quit,
               let visibleWindowCount = visibleWindowCount(for: application.processIdentifier),
@@ -178,7 +178,7 @@ final class CloseMonitor {
                     applicationName: application.localizedName,
                     isStandardWindow: true,
                     standardWindowCount: 1,
-                    rules: self.rules
+                    policy: self.policy
                   ) == .quit else {
                 self.logger.info("close check cancelled: source=keyboard reason=ruleChanged pid=\(application.processIdentifier, privacy: .public)")
                 return
@@ -230,7 +230,7 @@ final class CloseMonitor {
                     applicationName: application.localizedName,
                     isStandardWindow: true,
                     standardWindowCount: 1,
-                    rules: self.rules
+                    policy: self.policy
                   ) == .quit else { return }
 
             let appElement = AXUIElementCreateApplication(application.processIdentifier)
@@ -336,7 +336,7 @@ final class CloseMonitor {
                 applicationName: released.application.localizedName,
                 isStandardWindow: released.isStandardWindow,
                 standardWindowCount: released.standardWindowCount,
-                rules: rules
+                policy: policy
                ) == .quit {
                 requestQuit(pending)
             }
@@ -351,7 +351,7 @@ final class CloseMonitor {
                 bundleID: target.application.bundleIdentifier,
                 applicationName: target.application.localizedName,
                 isStandardWindow: target.isStandardWindow,
-                rules: rules
+                policy: policy
             ) else { return Unmanaged.passUnretained(event) }
             pendingFullScreenClose = target
             return Unmanaged.passUnretained(event)
@@ -361,7 +361,7 @@ final class CloseMonitor {
             applicationName: target.application.localizedName,
             isStandardWindow: target.isStandardWindow,
             standardWindowCount: target.standardWindowCount,
-            rules: rules
+            policy: policy
         ) == .quit else {
             return Unmanaged.passUnretained(event)
         }

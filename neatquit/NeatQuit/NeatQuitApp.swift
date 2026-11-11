@@ -24,6 +24,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
+    private var settingsHostingView: NSHostingView<SettingsView>?
     private var aboutWindow: NSWindow?
     private var licenseWindow: NSWindow?
     private let license = LicenseManager.shared
@@ -38,9 +39,13 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         installEditMenu()
-        monitor.updateRules(store.rules)
+        monitor.updatePolicy(store.policy)
         monitor.setKeyboardEnabled(license.isEntitled && keyboardEnabled)
-        store.onChange = { [weak self] rules in self?.monitor.updateRules(rules) }
+        store.onChange = { [weak self] policy in
+            guard let self else { return }
+            self.monitor.updatePolicy(policy)
+            self.sizeSettingsWindow()
+        }
         license.onChange = { [weak self] _ in self?.applyLicenseState() }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -57,7 +62,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         refreshMenu()
 
         authorizationTimer = Timer.scheduledTimer(
-            timeInterval: 1,
+            // 2 秒足够及时发现授权变化，同时减少空闲唤醒。
+            timeInterval: 2,
             target: self,
             selector: #selector(checkAccessibilityAuthorization),
             userInfo: nil,
@@ -89,11 +95,14 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     }
 
     @objc private func checkAccessibilityAuthorization() {
-        let inputMonitoringGranted = CGPreflightListenEventAccess()
-        if inputMonitoringGranted != inputMonitoringWasGranted {
-            inputMonitoringWasGranted = inputMonitoringGranted
-            if inputMonitoringGranted { monitor.retryKeyboard() }
-            refreshMenu()
+        // 只有开启 ⌘W 时才需要输入监控状态；关闭时跳过，减少无意义的 TCC 查询。
+        if keyboardEnabled {
+            let inputMonitoringGranted = CGPreflightListenEventAccess()
+            if inputMonitoringGranted != inputMonitoringWasGranted {
+                inputMonitoringWasGranted = inputMonitoringGranted
+                if inputMonitoringGranted { monitor.retryKeyboard() }
+                refreshMenu()
+            }
         }
 
         let trusted = AXIsProcessTrusted()
@@ -204,11 +213,12 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
         let bundleID = lastActiveApplication?.bundleIdentifier
         let applicationName = lastActiveApplication?.localizedName
-        let isExceptedByID = bundleID.map { store.rules.contains(AppRule(match: .bundleID, value: $0)) } ?? false
-        let isExceptedByName = applicationName.map { store.rules.contains(AppRule(match: .applicationName, value: $0)) } ?? false
+        let activeRules = store.activeRules
+        let isExceptedByID = bundleID.map { activeRules.contains(AppRule(match: .bundleID, value: $0)) } ?? false
+        let isExceptedByName = applicationName.map { activeRules.contains(AppRule(match: .applicationName, value: $0)) } ?? false
         if !isExceptedByID && !isExceptedByName {
             let addCurrent = NSMenuItem(
-                title: L10n.addCurrentAppTitle(applicationName ?? L10n.currentApp, pro: license.isEntitled),
+                title: L10n.addCurrentAppTitle(applicationName ?? L10n.currentApp, mode: store.mode, pro: license.isEntitled),
                 action: #selector(addCurrentApplication),
                 keyEquivalent: "")
             addCurrent.target = self
@@ -216,7 +226,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(addCurrent)
         }
 
-        let settings = NSMenuItem(title: L10n.exceptionsTitle(pro: license.isEntitled), action: #selector(openExceptionsWindow), keyEquivalent: "")
+        let settings = NSMenuItem(title: L10n.rulesTitle(pro: license.isEntitled), action: #selector(openExceptionsWindow), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
 
@@ -267,13 +277,34 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
                 defer: false
             )
             window.isReleasedWhenClosed = false
-            window.title = L10n.exceptionsWindow
-            window.contentView = NSHostingView(rootView: SettingsView(store: store))
+            window.title = L10n.rulesWindow
+            let hostingView = NSHostingView(rootView: SettingsView(store: store))
+            let preferredWidth: CGFloat = 560
+            hostingView.frame = NSRect(x: 0, y: 0, width: preferredWidth, height: 440)
+            hostingView.layoutSubtreeIfNeeded()
+            window.contentView = hostingView
+            settingsHostingView = hostingView
+            let fittingSize = hostingView.fittingSize
+            window.setContentSize(NSSize(
+                width: preferredWidth,
+                height: max(440, fittingSize.height)
+            ))
             window.center()
             settingsWindow = window
         }
         settingsWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// 模式切换或语言变化可能改变文案换行，重新按 SwiftUI 内容高度调整窗口。
+    private func sizeSettingsWindow() {
+        guard let window = settingsWindow, let hostingView = settingsHostingView else { return }
+        hostingView.layoutSubtreeIfNeeded()
+        let contentHeight = max(440, hostingView.fittingSize.height)
+        guard abs(window.contentLayoutRect.height - contentHeight) > 0.5 else { return }
+        let topLeft = NSPoint(x: window.frame.minX, y: window.frame.maxY)
+        window.setContentSize(NSSize(width: window.contentLayoutRect.width, height: contentHeight))
+        window.setFrameOrigin(NSPoint(x: topLeft.x, y: topLeft.y - window.frame.height))
     }
 
     @objc private func addCurrentApplication() {

@@ -15,7 +15,30 @@ struct AppRule: Codable, Hashable, Identifiable {
     var detail: String {
         match == .bundleID ? value : NSLocalizedString("rule.detail.applicationName", comment: "")
     }
+
+    func matches(searchQuery query: String) -> Bool {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        return displayName.localizedCaseInsensitiveContains(trimmed)
+            || value.localizedCaseInsensitiveContains(trimmed)
+            || detail.localizedCaseInsensitiveContains(trimmed)
+    }
 }
+
+enum RuleMode: String, Codable, CaseIterable {
+    /// 默认模式：自动退出所有 App，列表中的保持运行。
+    case allExceptListed
+    /// 反向模式：只自动退出列表中的 App。
+    case onlyListed
+}
+
+struct RulePolicy: Equatable {
+    var mode: RuleMode
+    var rules: Set<AppRule>
+
+    static let `default` = RulePolicy(mode: .allExceptListed, rules: [])
+}
+
 
 struct CloseDecision {
     enum Action: Equatable {
@@ -23,16 +46,21 @@ struct CloseDecision {
         case quit
     }
 
-    static func action(bundleID: String?, applicationName: String?, isStandardWindow: Bool, standardWindowCount: Int?, rules: Set<AppRule>) -> Action {
+    static func action(bundleID: String?, applicationName: String?, isStandardWindow: Bool, standardWindowCount: Int?, policy: RulePolicy) -> Action {
         guard isStandardWindow, standardWindowCount == 1,
               bundleID != nil || applicationName != nil else { return .close }
-        if let bundleID, rules.contains(AppRule(match: .bundleID, value: bundleID)) { return .close }
-        if let applicationName, rules.contains(AppRule(match: .applicationName, value: applicationName)) { return .close }
-        return .quit
+        let matched = (bundleID.map { policy.rules.contains(AppRule(match: .bundleID, value: $0)) } ?? false)
+            || (applicationName.map { policy.rules.contains(AppRule(match: .applicationName, value: $0)) } ?? false)
+        switch policy.mode {
+        case .allExceptListed:
+            return matched ? .close : .quit
+        case .onlyListed:
+            return matched ? .quit : .close
+        }
     }
 
-    static func shouldMonitorFullScreenClose(bundleID: String?, applicationName: String?, isStandardWindow: Bool, rules: Set<AppRule>) -> Bool {
-        action(bundleID: bundleID, applicationName: applicationName, isStandardWindow: isStandardWindow, standardWindowCount: 1, rules: rules) == .quit
+    static func shouldMonitorFullScreenClose(bundleID: String?, applicationName: String?, isStandardWindow: Bool, policy: RulePolicy) -> Bool {
+        action(bundleID: bundleID, applicationName: applicationName, isStandardWindow: isStandardWindow, standardWindowCount: 1, policy: policy) == .quit
     }
 
     static func shouldQuitAfterKeyboardClose(initialAction: Action, remainingWindowCount: Int?, remainingVisibleWindowCount: Int?, targetStillRunning: Bool) -> Bool {
@@ -60,24 +88,48 @@ struct CloseDecision {
 
 @MainActor
 final class RuleStore: ObservableObject {
-    @Published private(set) var rules: Set<AppRule> {
+    @Published private(set) var mode: RuleMode {
         didSet {
-            if let data = try? JSONEncoder().encode(rules) {
-                UserDefaults.standard.set(data, forKey: Self.storageKey)
-            }
-            onChange?(rules)
+            UserDefaults.standard.set(mode.rawValue, forKey: Self.modeKey)
+            notifyChange()
         }
     }
 
-    var onChange: ((Set<AppRule>) -> Void)?
-    private static let storageKey = "applicationRules"
+    @Published private(set) var exceptionRules: Set<AppRule> {
+        didSet {
+            save(exceptionRules, forKey: Self.exceptionStorageKey)
+            notifyChange()
+        }
+    }
+
+    @Published private(set) var quitRules: Set<AppRule> {
+        didSet {
+            save(quitRules, forKey: Self.quitStorageKey)
+            notifyChange()
+        }
+    }
+
+    var onChange: ((RulePolicy) -> Void)?
+    private static let modeKey = "ruleMode"
+    private static let exceptionStorageKey = "applicationRules"
+    private static let quitStorageKey = "applicationQuitRules"
+
+    var activeRules: Set<AppRule> {
+        mode == .allExceptListed ? exceptionRules : quitRules
+    }
+
+    var policy: RulePolicy {
+        RulePolicy(mode: mode, rules: activeRules)
+    }
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: Self.storageKey),
+        mode = RuleMode(rawValue: UserDefaults.standard.string(forKey: Self.modeKey) ?? "") ?? .allExceptListed
+
+        if let data = UserDefaults.standard.data(forKey: Self.exceptionStorageKey),
            let saved = try? JSONDecoder().decode(Set<AppRule>.self, from: data) {
-            rules = saved
+            exceptionRules = saved
         } else {
-            rules = Set([
+            exceptionRules = Set([
                 "com.tencent.xinWeChat", "com.tencent.qq", "com.tencent.qqmusic",
                 "com.spotify.client", "com.apple.Music", "com.meta.Telegram",
                 "com.netease.163music",
@@ -88,21 +140,57 @@ final class RuleStore: ObservableObject {
                 "BetterTouchTool", "DingTalk",
             ].map { AppRule(match: .applicationName, value: $0) })
         }
+
+        if let data = UserDefaults.standard.data(forKey: Self.quitStorageKey),
+           let saved = try? JSONDecoder().decode(Set<AppRule>.self, from: data) {
+            quitRules = saved
+        } else {
+            quitRules = []
+        }
+    }
+
+    func setMode(_ mode: RuleMode) {
+        guard self.mode != mode else { return }
+        self.mode = mode
     }
 
     func addApplication(at url: URL) throws {
         guard let bundle = Bundle(url: url), let bundleID = bundle.bundleIdentifier, !bundleID.isEmpty else {
             throw RuleError.missingBundleID
         }
-        rules.insert(AppRule(match: .bundleID, value: bundleID))
+        insert(AppRule(match: .bundleID, value: bundleID))
     }
 
     func addApplication(bundleID: String) {
-        rules.insert(AppRule(match: .bundleID, value: bundleID))
+        insert(AppRule(match: .bundleID, value: bundleID))
     }
 
     func remove(_ rule: AppRule) {
-        rules.remove(rule)
+        switch mode {
+        case .allExceptListed:
+            exceptionRules.remove(rule)
+        case .onlyListed:
+            quitRules.remove(rule)
+        }
+    }
+
+    private func insert(_ rule: AppRule) {
+        switch mode {
+        case .allExceptListed:
+            exceptionRules.insert(rule)
+        case .onlyListed:
+            quitRules.insert(rule)
+        }
+    }
+
+    private func save(_ rules: Set<AppRule>, forKey key: String) {
+        if let data = try? JSONEncoder().encode(rules) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    private func notifyChange() {
+        onChange?(policy)
     }
 
     enum RuleError: LocalizedError {

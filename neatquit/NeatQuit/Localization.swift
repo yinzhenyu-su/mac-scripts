@@ -17,11 +17,10 @@ enum L10n {
     static let grantInputMonitoring = text("menu.grantInputMonitoring")
     static let login = text("menu.login")
     static let currentApp = text("app.current")
-    static let exceptions = text("menu.exceptions")
     static let grantAccessibility = text("menu.grantAccessibility")
     static let about = text("menu.about")
     static let quit = text("menu.quit")
-    static let exceptionsWindow = text("window.exceptions")
+    static let rulesWindow = text("window.rules")
     static let loginSettingsError = text("error.loginSettings")
     static let accessibilityTitle = text("accessibility.title")
     static let accessibilityMessage = text("accessibility.message")
@@ -37,12 +36,16 @@ enum L10n {
     static let repository = text("about.repository")
     static let settingsTitle = text("settings.title")
     static let settingsDescription = text("settings.description")
+    static let settingsModeLabel = text("settings.mode.label")
+    static let settingsModeExclude = text("settings.mode.exclude")
+    static let settingsModeOnly = text("settings.mode.only")
     static let remove = text("settings.remove")
     static let addApp = text("settings.addApp")
-    static let settingsFooter = text("settings.footer")
     static let cannotAddApp = text("settings.cannotAddApp")
     static let okay = text("common.okay")
-    static let chooseAppMessage = text("settings.chooseAppMessage")
+    static let settingsSearchPlaceholder = text("settings.search.placeholder")
+    static let settingsClearSearch = text("settings.search.clear")
+    static let settingsNoResults = text("settings.search.noResults")
 
     static let menuEdit = text("menu.edit")
     static let menuUndo = text("menu.undo")
@@ -87,8 +90,6 @@ enum L10n {
     static let licenseMenuUnlock = text("menu.license.unlock")
     static let licenseMenuManage = text("menu.license.manage")
     static let keyboardPro = text("menu.keyboard.pro")
-    static let exceptionsPro = text("menu.exceptions.pro")
-    static let addCurrentPro = text("menu.addCurrent.pro")
 
     static func licenseTrialTitle(_ days: Int) -> String {
         String(format: text("license.trial.title"), days)
@@ -106,12 +107,31 @@ enum L10n {
         pro ? keyboard : keyboardPro
     }
 
-    static func exceptionsTitle(pro: Bool) -> String {
-        pro ? exceptions : exceptionsPro
+    static func rulesTitle(pro: Bool) -> String {
+        pro ? text("menu.rules") : text("menu.rules.pro")
     }
 
-    static func addCurrentAppTitle(_ name: String, pro: Bool) -> String {
-        String(format: pro ? text("menu.addCurrent") : addCurrentPro, name)
+    static func settingsFooter(mode: RuleMode) -> String {
+        mode == .allExceptListed ? text("settings.footer.exclude") : text("settings.footer.only")
+    }
+
+    static func settingsEmpty(mode: RuleMode) -> String {
+        mode == .allExceptListed ? text("settings.empty.exclude") : text("settings.empty.only")
+    }
+
+    static func chooseAppMessage(mode: RuleMode) -> String {
+        mode == .allExceptListed ? text("settings.chooseAppMessage.exclude") : text("settings.chooseAppMessage.only")
+    }
+
+    static func addCurrentAppTitle(_ name: String, mode: RuleMode, pro: Bool) -> String {
+        let key: String
+        switch (mode, pro) {
+        case (.allExceptListed, true): key = "menu.addCurrent"
+        case (.allExceptListed, false): key = "menu.addCurrent.pro"
+        case (.onlyListed, true): key = "menu.addCurrent.only"
+        case (.onlyListed, false): key = "menu.addCurrent.only.pro"
+        }
+        return String(format: text(key), name)
     }
 
 
