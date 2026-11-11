@@ -3,6 +3,32 @@
   <channel>
     <title>Neat Quit · 智能退出</title>
     <item>
+      <title>1.5.0</title>
+      <pubDate>Wed, 11 Nov 2026 03:30:21 +0000</pubDate>
+      <sparkle:version>17</sparkle:version>
+      <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[<h2>更新内容</h2>
+<ul>
+<li>「例外应用」窗口升级为「应用规则」，菜单入口同步改名</li>
+<li>新增搜索框，可按应用名称或 Bundle ID 快速筛选规则，支持一键清空和 Esc 清空</li>
+<li>新增「仅包含模式」：只对列表中的 App 智能退出；与「排除模式」互斥，切换后立即生效</li>
+<li>两种模式各自保存列表，升级不会改变现有例外规则</li>
+<li>菜单中的「加入例外 / 设为自动退出」会跟随当前模式变化</li>
+<li>规则窗口高度按内容自适应，修复新增搜索框后底部按钮被裁切的问题</li>
+<li>修复 Pro 用户菜单中仍显示「（Pro）」后缀的问题</li>
+<li>降低空闲唤醒：权限轮询调整为 2 秒，并跳过未启用 ⌘W 时的输入监控检查</li>
+</ul>
+<h2>升级说明</h2>
+<ul>
+<li>直接点「安装更新」即可，无需手动操作</li>
+<li>升级后默认仍是「排除模式」，原有例外列表和行为保持不变</li>
+<li>首次切换到「仅包含模式」时列表为空，需要手动添加要自动退出的 App；切换模式本身不会退出任何已打开的 App</li>
+<li>「应用规则」属于 Pro 功能，已激活的许可证和试用状态不受影响</li>
+</ul>]]></description>
+      <enclosure url="https://app.bgm.fun/NeatQuit-v1.5.0.dmg" length="5683060" type="application/octet-stream" sparkle:edSignature="0ZohQiWMYMDwOIUGN4WXU+WR2ff+etR68NeHZ4G1NYLBiBsNJCcN1Ri2lzn6uNLx56fVD7tr49ci1NHdeNgpCA==" />
+    </item>
+    <item>
       <title>1.4.1</title>
       <pubDate>Tue, 03 Nov 2026 09:38:34 +0000</pubDate>
       <sparkle:version>16</sparkle:version>
