@@ -1,0 +1,106 @@
+name: Update Appcast Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "已发布的 tag，例如 v1.5.0"
+        required: true
+        type: string
+      deploy:
+        description: "同时部署到 app.bgm.fun"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: 校验更新日志
+        env:
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          test -f "release-notes/${TAG_NAME}.md" || { echo "缺少 release-notes/${TAG_NAME}.md" >&2; exit 1; }
+          test -f "release-notes/${TAG_NAME}.en.md" || { echo "缺少 release-notes/${TAG_NAME}.en.md" >&2; exit 1; }
+          python3 scripts/test_make_appcast.py
+
+      - name: 拉取线上 appcast
+        env:
+          APP_BGM_URL: ${{ secrets.APP_BGM_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP"
+          curl -fsS "${APP_BGM_URL%/}/appcast.xml" -o "$RUNNER_TEMP/appcast.xml"
+
+      - name: 替换该版本更新日志
+        env:
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          python3 scripts/make-appcast.py \
+            --appcast "$RUNNER_TEMP/appcast.xml" \
+            --tag "$TAG_NAME" \
+            --replace-notes \
+            --notes-file "release-notes/${TAG_NAME}.md" \
+            --notes-file-en "release-notes/${TAG_NAME}.en.md"
+          grep -q 'xml:lang="en"' "$RUNNER_TEMP/appcast.xml"
+          grep -q 'xml:lang="zh-Hans"' "$RUNNER_TEMP/appcast.xml"
+          echo "✔ appcast 已包含中英文更新日志"
+
+      - name: 部署到 app.bgm.fun
+        if: ${{ inputs.deploy }}
+        env:
+          FTP_HOST: ${{ secrets.APP_BGM_FTP_HOST }}
+          FTP_USER: ${{ secrets.APP_BGM_FTP_USER }}
+          FTP_PASS: ${{ secrets.APP_BGM_FTP_PASS }}
+          APP_BGM_URL: ${{ secrets.APP_BGM_URL }}
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          FTP="ftp://${FTP_HOST}"
+          AUTH=(--ssl-reqd --user "$FTP_USER:$FTP_PASS")
+          put()   { curl -fsS "${AUTH[@]}" --max-time 600 -T "$1" "${FTP}/$2"; }
+          publish() {
+            curl -fsS "${AUTH[@]}" --max-time 120 \
+              --quote "RNFR $1" --quote "RNTO $2" "${FTP}/" -o /dev/null
+          }
+
+          put "$RUNNER_TEMP/appcast.xml" ".appcast.xml.${TAG_NAME}"
+          publish ".appcast.xml.${TAG_NAME}" "appcast.xml"
+          echo "✔ appcast 已部署"
+
+          URL="${APP_BGM_URL%/}/appcast.xml"
+          if ! curl -fsS "${URL}?v=$(date +%s)" | grep -q 'xml:lang="en"'; then
+            echo "✗ 线上 appcast 未包含英文更新日志" >&2
+            exit 1
+          fi
+          echo "✔ 线上 appcast 校验通过"
+
+      - name: 提交 appcast 回 master
+        env:
+          TAG_NAME: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/appcast.xml" appcast.xml
+          if git diff --quiet -- appcast.xml; then
+            echo "appcast 无变化，跳过提交"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add appcast.xml
+          git commit -m "docs(appcast): ${TAG_NAME} 同步英文更新日志"
+          git fetch origin master
+          git rebase origin/master
+          git push origin master

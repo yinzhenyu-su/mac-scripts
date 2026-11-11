@@ -16,12 +16,19 @@ spec.loader.exec_module(appcast)
 SP = appcast.sp
 
 
-def make_item(version: str, build: int, notes: str = "notes", sig: str = "SIG") -> ET.Element:
+def make_item(
+    version: str,
+    build: int,
+    notes: str = "notes",
+    sig: str = "SIG",
+    notes_en: str | None = None,
+) -> ET.Element:
     return appcast.build_item(
         short_version=version,
         build=build,
         min_os="13.0",
         notes_html=notes,
+        notes_html_en=notes_en,
         dmg_url=f"https://example.com/NeatQuit-v{version}.dmg",
         length=1234,
         signature=sig,
@@ -78,6 +85,40 @@ class WriteTests(unittest.TestCase):
     def test_skip_description_when_notes_empty(self):
         item = make_item("1.3.2", 7, notes="   ")
         self.assertIsNone(item.find("description"))
+
+    def test_localized_descriptions(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "appcast.xml"
+            item = make_item("1.5.0", 17, notes="中文说明", notes_en="English notes")
+            appcast.write_appcast(path, "t", [item])
+            descriptions = ET.parse(path).getroot().findall("channel/item/description")
+            self.assertEqual([d.get("{http://www.w3.org/XML/1998/namespace}lang") for d in descriptions],
+                             ["zh-Hans", "en"])
+            self.assertIn("中文说明", descriptions[0].text)
+            self.assertIn("English notes", descriptions[1].text)
+            xml = path.read_text(encoding="utf-8")
+            self.assertIn('<description xml:lang="zh-Hans"><![CDATA[', xml)
+            self.assertIn('<description xml:lang="en"><![CDATA[', xml)
+
+
+class ReplaceNotesTests(unittest.TestCase):
+    def test_replace_keeps_enclosure_and_date(self):
+        item = make_item("1.5.0", 17, notes="old")
+        pub_date = item.findtext("pubDate")
+        enclosure = item.find("enclosure")
+        assert enclosure is not None
+        self.assertTrue(appcast.replace_item_notes(
+            [item], "1.5.0", "新中文", "New English"))
+        descriptions = item.findall("description")
+        self.assertEqual(len(descriptions), 2)
+        self.assertEqual(descriptions[0].get("xml:lang"), "zh-Hans")
+        self.assertIn("新中文", descriptions[0].text)
+        self.assertIn("New English", descriptions[1].text)
+        self.assertEqual(item.findtext("pubDate"), pub_date)
+        self.assertEqual(item.find("enclosure"), enclosure)
+
+    def test_replace_missing_version_returns_false(self):
+        self.assertFalse(appcast.replace_item_notes([make_item("1.5.0", 17)], "1.4.1", "x"))
 
 
 class MarkdownTests(unittest.TestCase):
@@ -143,6 +184,28 @@ class CliTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             appcast.main(["--tag", "1.3.2", "--build", "7", "--length", "1",
                           "--dmg-url", "https://example.com/a.dmg", "--signature", "S"])
+
+    def test_cli_replace_notes(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "appcast.xml"
+            zh = Path(d) / "notes.md"
+            en = Path(d) / "notes.en.md"
+            zh.write_text("中文", encoding="utf-8")
+            en.write_text("English", encoding="utf-8")
+            appcast.main([
+                "--appcast", str(path), "--tag", "v1.5.0", "--build", "17",
+                "--length", "1", "--dmg-url", "https://example.com/a.dmg",
+                "--signature", "S", "--notes-file", str(zh),
+            ])
+            self.assertEqual(appcast.main([
+                "--appcast", str(path), "--tag", "v1.5.0", "--replace-notes",
+                "--notes-file", str(zh), "--notes-file-en", str(en),
+            ]), 0)
+            item = ET.parse(path).getroot().find("channel/item")
+            assert item is not None
+            descriptions = item.findall("description")
+            self.assertEqual(len(descriptions), 2)
+            self.assertEqual(descriptions[1].get("{http://www.w3.org/XML/1998/namespace}lang"), "en")
 
 
 if __name__ == "__main__":

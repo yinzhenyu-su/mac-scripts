@@ -120,8 +120,25 @@ jobs:
             echo "未找到 ${NOTES}，已根据 git log 生成"
             echo "::warning title=缺少更新日志::没有 release-notes/${TAG_NAME}.md，本次用 git log 自动生成。建议用 ./scripts/release.sh 发版。"
           fi
+
+          NOTES_EN="release-notes/${TAG_NAME}.en.md"
+          if [ -f "$NOTES_EN" ]; then
+            cp "$NOTES_EN" "$RUNNER_TEMP/notes.en.md"
+            echo "使用 $NOTES_EN"
+          else
+            rm -f "$RUNNER_TEMP/notes.en.md"
+            echo "::warning title=缺少英文更新日志::没有 ${NOTES_EN}，更新弹窗将只显示中文。"
+          fi
+
+          # GitHub Release 没有本地化能力，正文里同时放中英文；appcast 则分语言写入。
+          cp "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP/notes.release.md"
+          if [ -s "$RUNNER_TEMP/notes.en.md" ]; then
+            printf '\n\n---\n\n' >> "$RUNNER_TEMP/notes.release.md"
+            cat "$RUNNER_TEMP/notes.en.md" >> "$RUNNER_TEMP/notes.release.md"
+          fi
+
           echo "----- 更新日志 -----"
-          cat "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.release.md"
           echo "--------------------"
 
       - name: 发布到 GitHub Release
@@ -130,7 +147,7 @@ jobs:
           TAG_NAME: ${{ github.ref_name }}
           DMG_PATH: neatquit/build/智能退出.dmg
           RELEASE_PATH: neatquit/build/NeatQuit-${{ github.ref_name }}.dmg
-          NOTES: ${{ runner.temp }}/notes.md
+          NOTES: ${{ runner.temp }}/notes.release.md
         run: |
           cp "$DMG_PATH" "$RELEASE_PATH"
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
@@ -174,14 +191,19 @@ jobs:
           # 基于远端 master 的最新 appcast 合并，避免把上一版条目丢掉
           git fetch origin master
           git checkout -B appcast-update origin/master
-          python3 scripts/make-appcast.py \
-            --appcast appcast.xml \
-            --tag "$TAG_NAME" \
-            --build "$BUILD_NUMBER" \
-            --dmg-url "$URL" \
-            --length "$LEN" \
-            --signature "$SIG" \
+          APPCAST_ARGS=(
+            --appcast appcast.xml
+            --tag "$TAG_NAME"
+            --build "$BUILD_NUMBER"
+            --dmg-url "$URL"
+            --length "$LEN"
+            --signature "$SIG"
             --notes-file "$RUNNER_TEMP/notes.md"
+          )
+          if [ -s "$RUNNER_TEMP/notes.en.md" ]; then
+            APPCAST_ARGS+=(--notes-file-en "$RUNNER_TEMP/notes.en.md")
+          fi
+          python3 scripts/make-appcast.py "${APPCAST_ARGS[@]}"
           cp appcast.xml "$RUNNER_TEMP/appcast.xml"
 
       # 6) 部署到 app.bgm.fun（FTPS）：先传 DMG（新文件名，不会被用户提前访问），

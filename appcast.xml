@@ -8,7 +8,7 @@
       <sparkle:version>17</sparkle:version>
       <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
-      <description><![CDATA[<h2>更新内容</h2>
+      <description xml:lang="zh-Hans"><![CDATA[<h2>更新内容</h2>
 <ul>
 <li>「例外应用」窗口升级为「应用规则」，菜单入口同步改名</li>
 <li>新增搜索框，可按应用名称或 Bundle ID 快速筛选规则，支持一键清空和 Esc 清空</li>
@@ -25,6 +25,24 @@
 <li>升级后默认仍是「排除模式」，原有例外列表和行为保持不变</li>
 <li>首次切换到「仅包含模式」时列表为空，需要手动添加要自动退出的 App；切换模式本身不会退出任何已打开的 App</li>
 <li>「应用规则」属于 Pro 功能，已激活的许可证和试用状态不受影响</li>
+</ul>]]></description>
+      <description xml:lang="en"><![CDATA[<h2>What's New</h2>
+<ul>
+<li>Renamed "Exception Apps" to "App Rules"; the menu entry now matches</li>
+<li>Added a search field to filter rules by app name or bundle ID, with one-click and Esc clearing</li>
+<li>Added "Only listed apps" mode: Neat Quit only quits apps in the list. It is mutually exclusive with "Quit all except listed" and takes effect immediately</li>
+<li>Each mode keeps its own list, so existing exception rules are unchanged after upgrading</li>
+<li>The "Add to Exceptions / Set to Auto Quit" menu item now follows the current mode</li>
+<li>The rules window resizes to fit its content, fixing the clipped bottom buttons after adding search</li>
+<li>Fixed Pro users still seeing a "(Pro)" suffix in the menu</li>
+<li>Reduced idle wakeups: permission polling is now every 2 seconds, and input monitoring checks are skipped when ⌘W is disabled</li>
+</ul>
+<h2>Upgrade Notes</h2>
+<ul>
+<li>Click "Install Update"; no manual steps are required</li>
+<li>After upgrading, the default is still "Quit all except listed", and your existing exception list and behavior are unchanged</li>
+<li>"Only listed apps" starts with an empty list; add the apps you want to auto-quit manually. Switching modes does not quit any currently open apps</li>
+<li>App Rules is a Pro feature; activated licenses and trial status are unaffected</li>
 </ul>]]></description>
       <enclosure url="https://app.bgm.fun/NeatQuit-v1.5.0.dmg" length="5683060" type="application/octet-stream" sparkle:edSignature="0ZohQiWMYMDwOIUGN4WXU+WR2ff+etR68NeHZ4G1NYLBiBsNJCcN1Ri2lzn6uNLx56fVD7tr49ci1NHdeNgpCA==" />
     </item>

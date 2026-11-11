@@ -77,6 +77,10 @@ else
   echo "  更新日志：${NOTES}（已根据 git log 生成草稿）"
 fi
 
+if [[ ! -f "release-notes/${TAG}.en.md" ]]; then
+  echo "  提示：未找到 release-notes/${TAG}.en.md，Sparkle 更新弹窗将只显示中文"
+fi
+
 if [[ "$NO_EDIT" -eq 0 && "$DRY_RUN" -eq 0 && -t 0 ]]; then
   echo
   echo "── 编辑 ${NOTES}（保存退出后继续，留空则取消）──────────────────"

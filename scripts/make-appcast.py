@@ -164,6 +164,26 @@ def notes_to_html(notes: str, notes_format: str = "markdown") -> str:
     return markdown_to_html(notes) if notes_format == "markdown" else notes
 
 
+def add_notes(
+    item: ET.Element,
+    notes: str,
+    notes_format: str = "markdown",
+    language: str | None = None,
+) -> bool:
+    """向 item 写入 description；有语言时写入 xml:lang，供 Sparkle 按系统语言选择。"""
+    if not notes.strip():
+        return False
+    attrs = {"xml:lang": language} if language else {}
+    description = ET.Element("description", attrs)
+    description.text = notes_to_html(notes, notes_format)
+    enclosure = item.find("enclosure")
+    if enclosure is not None:
+        item.insert(list(item).index(enclosure), description)
+    else:
+        item.append(description)
+    return True
+
+
 def item_version(item: ET.Element) -> int:
     raw = item.findtext(sp("version"))
     try:
@@ -178,6 +198,7 @@ def build_item(
     build: int,
     min_os: str,
     notes_html: str,
+    notes_html_en: str | None = None,
     dmg_url: str,
     length: int,
     signature: str,
@@ -191,12 +212,15 @@ def build_item(
     ET.SubElement(item, sp("version")).text = str(build)
     ET.SubElement(item, sp("shortVersionString")).text = short_version
     ET.SubElement(item, sp("minimumSystemVersion")).text = min_os
-    if notes_html.strip():
-        # Sparkle 用 NSXMLElement.stringValue 取这个节点的文本，再当 HTML 渲染。
-        # 所以必须把 HTML 存成「文本」（最终输出为 CDATA），不能拆成 XML 子节点，
-        # 否则标签会被吃掉，弹窗里只剩纯文字。
-        html = notes_to_html(notes_html, notes_format)
-        ET.SubElement(item, "description").text = html
+    # Sparkle 用 NSXMLElement.stringValue 取 description 节点的文本，再当 HTML 渲染。
+    # 所以必须把 HTML 存成「文本」（最终输出为 CDATA），不能拆成 XML 子节点，
+    # 否则标签会被吃掉，弹窗里只剩纯文字。
+    # 中英文各写一个 description，Sparkle 会按系统首选语言选择。
+    if notes_html_en is not None and notes_html_en.strip():
+        add_notes(item, notes_html, notes_format, language="zh-Hans")
+        add_notes(item, notes_html_en, notes_format, language="en")
+    else:
+        add_notes(item, notes_html, notes_format)
     ET.SubElement(
         item,
         "enclosure",
@@ -218,13 +242,39 @@ def merge_items(existing: list[ET.Element], new: ET.Element, max_items: int) -> 
     return kept[:max_items]
 
 
-CDATA_RE = re.compile(r"<description>(.*?)</description>", re.DOTALL)
+def replace_item_notes(
+    items: list[ET.Element],
+    short_version: str,
+    notes: str,
+    notes_en: str | None = None,
+    notes_format: str = "markdown",
+) -> bool:
+    """替换已发布条目的更新日志，保留版本、时间、下载地址和签名。"""
+    for item in items:
+        if item.findtext(sp("shortVersionString")) != short_version:
+            continue
+        for child in list(item):
+            if child.tag == "description":
+                item.remove(child)
+        if notes_en is not None and notes_en.strip():
+            add_notes(item, notes, notes_format, language="zh-Hans")
+            add_notes(item, notes_en, notes_format, language="en")
+        else:
+            add_notes(item, notes, notes_format)
+        return True
+    return False
+
+
+CDATA_RE = re.compile(r"<description([^>]*)>(.*?)</description>", re.DOTALL)
 
 
 def _to_cdata(match: re.Match[str]) -> str:
     """把 <description> 的转义文本还原成 CDATA，Sparkle 才能拿到原始 HTML。"""
-    html = unescape(match.group(1))
-    return "<description><![CDATA[" + html.replace("]]>", "]]]]><![CDATA[>") + "]]></description>"
+    html = unescape(match.group(2))
+    return (
+        "<description" + match.group(1) + "><![CDATA["
+        + html.replace("]]>", "]]]]><![CDATA[>") + "]]></description>"
+    )
 
 
 def write_appcast(path: Path, title: str, items: list[ET.Element]) -> None:
@@ -243,32 +293,52 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="生成 / 合并 Sparkle appcast.xml")
     ap.add_argument("--appcast", default="appcast.xml", type=Path)
     ap.add_argument("--tag", required=True, help="vX.Y.Z")
-    ap.add_argument("--build", required=True, type=int, help="CFBundleVersion，必须递增")
-    ap.add_argument("--dmg-url", required=True)
-    ap.add_argument("--length", required=True, type=int)
-    ap.add_argument("--signature", required=True, help="sign_update 输出的 edSignature")
+    ap.add_argument("--build", type=int, help="CFBundleVersion，必须递增；--replace-notes 时不需要")
+    ap.add_argument("--dmg-url")
+    ap.add_argument("--length", type=int)
+    ap.add_argument("--signature", help="sign_update 输出的 edSignature")
     ap.add_argument("--notes-file", type=Path, help="更新日志：Markdown（默认）或 HTML，见 --notes-format")
+    ap.add_argument("--notes-file-en", type=Path, help="英文更新日志；与中文同时写入 xml:lang 的 description")
     ap.add_argument("--notes-format", choices=["markdown", "html"], default="markdown",
                     help="--notes-file 的格式；markdown 会被转成 HTML 供 Sparkle 渲染")
+    ap.add_argument("--replace-notes", action="store_true",
+                    help="只替换已存在条目的更新日志，不修改版本、下载地址和签名")
     ap.add_argument("--min-os", default="13.0")
     ap.add_argument("--max-items", type=int, default=10)
     ap.add_argument("--title", default="Neat Quit · 智能退出")
     args = ap.parse_args(argv)
 
     short_version = parse_tag(args.tag)
-    if args.build <= 0:
+    notes = args.notes_file.read_text(encoding="utf-8") if args.notes_file else ""
+    notes_en = args.notes_file_en.read_text(encoding="utf-8") if args.notes_file_en else None
+
+    if args.replace_notes:
+        if not notes:
+            raise SystemExit("--replace-notes 需要 --notes-file")
+        items = read_items(args.appcast)
+        if not replace_item_notes(items, short_version, notes, notes_en, args.notes_format):
+            raise SystemExit(f"appcast 中找不到版本 {short_version}")
+        write_appcast(args.appcast, args.title, items)
+        print(f"appcast 更新日志已替换：{args.appcast} · {short_version}")
+        return 0
+
+    if args.build is None or args.build <= 0:
         raise SystemExit("build 必须是正整数")
+    if not args.dmg_url:
+        raise SystemExit("--dmg-url 不能为空")
     if not args.dmg_url.endswith(".dmg"):
         raise SystemExit("--dmg-url 必须以 .dmg 结尾")
-    if not args.signature.strip():
+    if args.length is None:
+        raise SystemExit("--length 不能为空")
+    if not args.signature or not args.signature.strip():
         raise SystemExit("--signature 不能为空")
 
-    notes = args.notes_file.read_text(encoding="utf-8") if args.notes_file else ""
     new_item = build_item(
         short_version=short_version,
         build=args.build,
         min_os=args.min_os,
         notes_html=notes,
+        notes_html_en=notes_en,
         dmg_url=args.dmg_url,
         length=args.length,
         signature=args.signature.strip(),
