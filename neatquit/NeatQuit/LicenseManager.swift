@@ -234,9 +234,10 @@ final class LicenseManager: ObservableObject {
         LocalStore.write("1", account: migrationAccount)
 
         let defaults = UserDefaults.standard
-        let usedBefore = defaults.object(forKey: "keyboardEnabled") != nil
-            || defaults.object(forKey: "applicationRules") != nil
-            || defaults.object(forKey: "enabled") != nil
+        let usedBefore = (defaults.object(forKey: "rules.legacyUsageSnapshot") as? Bool)
+            ?? (defaults.object(forKey: "keyboardEnabled") != nil
+                || defaults.object(forKey: "applicationRules") != nil
+                || defaults.object(forKey: "enabled") != nil)
         if usedBefore {
             LocalStore.write("1", account: legacyAccount)
         }

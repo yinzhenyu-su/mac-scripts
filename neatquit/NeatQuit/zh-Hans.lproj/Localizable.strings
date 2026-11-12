@@ -101,3 +101,11 @@
 "menu.paste" = "粘贴";
 "menu.selectAll" = "全选";
 "license.paste" = "粘贴";
+
+"onboarding.title" = "应用规则说明";
+"onboarding.exclude" = "排除列表中的应用保持原有关闭行为；其他应用关闭最后一个标准窗口时可自动退出。";
+"onboarding.only" = "仅列表中的应用关闭最后一个标准窗口时可自动退出。";
+"onboarding.permission" = "编辑规则需要有效试用或 Pro。自动退出需要辅助功能权限，阅读本说明无需授权。";
+"onboarding.later" = "稍后处理";
+"onboarding.adjust" = "调整规则…";
+"onboarding.confirm" = "我知道了";

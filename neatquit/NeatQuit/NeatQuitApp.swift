@@ -25,6 +25,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
     private var settingsHostingView: NSHostingView<SettingsView>?
+    private var onboardingWindow: NSWindow?
+    private var onboardingCloseObserver: NSObjectProtocol?
     private var aboutWindow: NSWindow?
     private var licenseWindow: NSWindow?
     private let license = LicenseManager.shared
@@ -71,6 +73,9 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         )
 
         Task { await license.validateOnLaunch() }
+        if store.needsOnboarding {
+            DispatchQueue.main.async { [weak self] in self?.showRuleGuideWhenReady() }
+        }
     }
 
     /// 菜单栏应用默认没有主菜单，文本输入框收不到 Cmd+C/V/A。
@@ -226,6 +231,9 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(addCurrent)
         }
 
+        let guide = NSMenuItem(title: NSLocalizedString("onboarding.title", comment: ""), action: #selector(openRuleGuide), keyEquivalent: "")
+        guide.target = self
+        menu.addItem(guide)
         let settings = NSMenuItem(title: L10n.rulesTitle(pro: license.isEntitled), action: #selector(openExceptionsWindow), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
@@ -265,6 +273,36 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         UserDefaults.standard.set(keyboardEnabled, forKey: "keyboardEnabled")
         monitor.setKeyboardEnabled(keyboardEnabled)
         refreshMenu()
+    }
+
+    private func showRuleGuideWhenReady() {
+        guard store.needsOnboarding else { return }
+        guard NSApp.modalWindow == nil else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.showRuleGuideWhenReady() }
+            return
+        }
+        openRuleGuide()
+    }
+
+    @objc private func openRuleGuide() {
+        if onboardingWindow == nil {
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 500),
+                                  styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.title = NSLocalizedString("onboarding.title", comment: "")
+            window.contentView = NSHostingView(rootView: RuleGuideView(store: store, finish: { [weak self] edit in
+                self?.store.finishOnboarding()
+                self?.onboardingWindow?.close()
+                if edit { self?.openExceptionsWindow() }
+            }))
+            onboardingCloseObserver = NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.store.finishOnboarding() }
+            }
+            window.center()
+            onboardingWindow = window
+        }
+        onboardingWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func openExceptionsWindow() {

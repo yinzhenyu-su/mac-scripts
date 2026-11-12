@@ -90,7 +90,7 @@ struct CloseDecision {
 final class RuleStore: ObservableObject {
     @Published private(set) var mode: RuleMode {
         didSet {
-            UserDefaults.standard.set(mode.rawValue, forKey: Self.modeKey)
+            defaults.set(mode.rawValue, forKey: Self.modeKey)
             notifyChange()
         }
     }
@@ -122,14 +122,7 @@ final class RuleStore: ObservableObject {
         RulePolicy(mode: mode, rules: activeRules)
     }
 
-    init() {
-        mode = RuleMode(rawValue: UserDefaults.standard.string(forKey: Self.modeKey) ?? "") ?? .allExceptListed
-
-        if let data = UserDefaults.standard.data(forKey: Self.exceptionStorageKey),
-           let saved = try? JSONDecoder().decode(Set<AppRule>.self, from: data) {
-            exceptionRules = saved
-        } else {
-            exceptionRules = Set([
+    static let legacyDefaults: Set<AppRule> = Set([
                 "com.tencent.xinWeChat", "com.tencent.qq", "com.tencent.qqmusic",
                 "com.spotify.client", "com.apple.Music", "com.meta.Telegram",
                 "com.netease.163music",
@@ -139,9 +132,41 @@ final class RuleStore: ObservableObject {
                 "ZeroTier", "ClashX Meta", "v2rayN", "ClashX Pro", "Longshot",
                 "BetterTouchTool", "DingTalk",
             ].map { AppRule(match: .applicationName, value: $0) })
+    static let onboardingKey = "rules.onboardingHandled"
+    private let defaults: UserDefaults
+    var needsOnboarding: Bool { !defaults.bool(forKey: Self.onboardingKey) }
+    func finishOnboarding() { defaults.set(true, forKey: Self.onboardingKey) }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        if defaults.object(forKey: "rules.legacyUsageSnapshot") == nil {
+            defaults.set(["keyboardEnabled", "applicationRules", "enabled"].contains { defaults.object(forKey: $0) != nil }, forKey: "rules.legacyUsageSnapshot")
+        }
+        let existing = defaults.dictionaryRepresentation().keys.contains {
+            ["enabled", "keyboardEnabled", Self.modeKey, Self.exceptionStorageKey, Self.quitStorageKey].contains($0)
+                || $0.hasPrefix("license.")
+        }
+        if defaults.object(forKey: Self.onboardingKey) == nil {
+            defaults.set(existing, forKey: Self.onboardingKey)
+            if defaults.object(forKey: Self.exceptionStorageKey) == nil {
+                var initial = Self.legacyDefaults
+                if !existing {
+                    initial.formUnion(["com.apple.MobileSMS", "com.apple.Terminal"].map { AppRule(match: .bundleID, value: $0) })
+                }
+                defaults.set(try? JSONEncoder().encode(initial), forKey: Self.exceptionStorageKey)
+            }
         }
 
-        if let data = UserDefaults.standard.data(forKey: Self.quitStorageKey),
+        mode = RuleMode(rawValue: defaults.string(forKey: Self.modeKey) ?? "") ?? .allExceptListed
+
+        if let data = defaults.data(forKey: Self.exceptionStorageKey),
+           let saved = try? JSONDecoder().decode(Set<AppRule>.self, from: data) {
+            exceptionRules = saved
+        } else {
+            exceptionRules = Self.legacyDefaults
+        }
+
+        if let data = defaults.data(forKey: Self.quitStorageKey),
            let saved = try? JSONDecoder().decode(Set<AppRule>.self, from: data) {
             quitRules = saved
         } else {
@@ -185,7 +210,7 @@ final class RuleStore: ObservableObject {
 
     private func save(_ rules: Set<AppRule>, forKey key: String) {
         if let data = try? JSONEncoder().encode(rules) {
-            UserDefaults.standard.set(data, forKey: key)
+            defaults.set(data, forKey: key)
         }
     }
 

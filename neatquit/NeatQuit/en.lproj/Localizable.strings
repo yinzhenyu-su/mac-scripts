@@ -101,3 +101,11 @@
 "menu.paste" = "Paste";
 "menu.selectAll" = "Select All";
 "license.paste" = "Paste";
+
+"onboarding.title" = "Application Rules Guide";
+"onboarding.exclude" = "Apps in this exclusion list keep their usual closing behavior. Other apps can quit when their last standard window closes.";
+"onboarding.only" = "Only apps in this list can auto-quit when their last standard window closes.";
+"onboarding.permission" = "Editing rules requires an active trial or Pro. Accessibility permission is required for automatic quitting, not for reading this guide.";
+"onboarding.later" = "Later";
+"onboarding.adjust" = "Adjust Rules…";
+"onboarding.confirm" = "Got It";

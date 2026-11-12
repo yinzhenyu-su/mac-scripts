@@ -142,3 +142,28 @@ struct SettingsView: View {
     SettingsView(store: RuleStore())
 }
 #endif
+
+struct RuleGuideView: View {
+    @ObservedObject var store: RuleStore
+    let finish: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("onboarding.title").font(.title2.bold())
+            Text(store.mode == .allExceptListed ? "onboarding.exclude" : "onboarding.only")
+            List(store.activeRules.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }) { rule in
+                VStack(alignment: .leading) {
+                    Text(rule.displayName)
+                    Text(rule.detail).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Text("onboarding.permission").font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("onboarding.later") { finish(false) }
+                Spacer()
+                Button("onboarding.adjust") { finish(true) }
+                Button("onboarding.confirm") { finish(false) }.keyboardShortcut(.defaultAction)
+            }
+        }.padding(24).frame(width: 560, height: 500)
+    }
+}

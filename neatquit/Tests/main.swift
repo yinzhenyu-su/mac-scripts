@@ -59,3 +59,29 @@ precondition(!AppRule(match: .applicationName, value: "Music").matches(searchQue
 precondition(AppRule(match: .applicationName, value: "Music").matches(searchQuery: "   "), "blank search matches every app")
 
 print("46 decision cases passed")
+
+MainActor.assumeIsolated {
+    let name = "fun.bgm.neatquit.onboarding-tests.\(UUID().uuidString)"
+    let prefs = UserDefaults(suiteName: name)!
+    defer { prefs.removePersistentDomain(forName: name) }
+    let fresh = RuleStore(defaults: prefs)
+    precondition(fresh.needsOnboarding)
+    precondition(!prefs.bool(forKey: "rules.legacyUsageSnapshot"))
+    precondition(fresh.exceptionRules.contains(AppRule(match: .bundleID, value: "com.apple.Terminal")))
+    precondition(RuleStore(defaults: prefs).needsOnboarding)
+    fresh.finishOnboarding()
+    precondition(!RuleStore(defaults: prefs).needsOnboarding)
+    prefs.removePersistentDomain(forName: name)
+    prefs.set(false, forKey: "enabled")
+    let old = RuleStore(defaults: prefs)
+    precondition(!old.needsOnboarding && old.exceptionRules == RuleStore.legacyDefaults)
+    prefs.removePersistentDomain(forName: name)
+    prefs.set(Data("broken".utf8), forKey: "applicationRules")
+    precondition(RuleStore(defaults: prefs).exceptionRules == RuleStore.legacyDefaults)
+    prefs.removePersistentDomain(forName: name)
+    prefs.set(try! JSONEncoder().encode(Set<AppRule>()), forKey: "applicationRules")
+    prefs.set("onlyListed", forKey: "ruleMode")
+    let custom = RuleStore(defaults: prefs)
+    precondition(custom.mode == .onlyListed && custom.exceptionRules.isEmpty)
+}
+print("Onboarding migration cases passed")
