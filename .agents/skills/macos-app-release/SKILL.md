@@ -36,10 +36,11 @@ git tag --sort=-v:refname | head -3
 
 - tag `vX.Y.Z` 不存在
 - 工作区没有未提交改动
-- 最近一次 CI `Build` 成功
+- **当前 HEAD** 的 CI `Build` 成功，不要只看最近一次运行；旧提交的绿灯不算
 
 ```sh
-gh run list --limit 3
+gh run list --branch master --limit 3
+gh run view <run-id> --json headSha,conclusion
 ```
 
 ## 2. 写更新日志
@@ -87,6 +88,8 @@ gh run watch <run-id> --exit-status
 
 关注步骤：`构建并签名公证`、`校验签名与公证`、`发布到 GitHub Release`、`生成 appcast`、`部署到 app.bgm.fun`、`提交 appcast 回 master`。
 
+发版后同时检查两个 workflow：`Release DMG` 负责产物与 appcast，`Build` 负责不签名构建与规则测试。两者都绿才算完成；`Release DMG` 成功但 `Build` 失败时，按下面「其他失败」处理，不要重新打 tag。
+
 ### FTP 超时（exit code 28）
 
 `部署到 app.bgm.fun` 偶发 curl 超时。**不要重新打 tag**，直接重跑失败任务：
@@ -102,6 +105,7 @@ gh run rerun <run-id> --failed
 - 签名失败：检查仓库 Secrets 中的 `SIGN_IDENTITY`、`TEAM_ID`、证书与钥匙串导入
 - 公证失败：检查 `ASC_KEY_PATH` / `ASC_KEY_ID` / `ASC_ISSUER_ID`，以及 Sparkle 嵌套组件签名
 - appcast 生成失败：检查 `SPARKLE_ED_PRIVATE_KEY`
+- 规则测试失败：检查 `.github/workflows/build.yml` 的 `swiftc` 文件列表是否与 README 的本地测试命令一致；新增源文件后容易漏
 - tag 已存在：不能覆盖发版，提升版本号重新走流程
 
 ## 5. 校验发布物
@@ -165,7 +169,7 @@ git log --oneline -3
 ## 验收清单
 
 - [ ] `release-notes/vX.Y.Z.md` 已写清用户变化与升级说明
-- [ ] tag 已推送，CI `Release DMG` 全绿
+- [ ] tag 已推送，`Release DMG` 与 `Build` 两个 workflow 全绿
 - [ ] GitHub Release 有 `NeatQuit-vX.Y.Z.dmg`
 - [ ] app.bgm.fun DMG 可下载，大小与 SHA-256 正确
 - [ ] appcast 最新条目指向新版本，签名/长度正确

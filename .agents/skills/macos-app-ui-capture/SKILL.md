@@ -11,13 +11,15 @@ description: Capture real NeatQuit macOS app UI screenshots in Chinese and Engli
 
 | 场景 | 建议文件 | 尺寸 |
 | --- | --- | --- |
-| 中文菜单 | `neatquit-menu.webp` | 约 486 × 480 |
+| 中文菜单 | `neatquit-menu.webp` | 约 492 × 610（按内容裁剪） |
 | 中文关于 | `neatquit-about.webp` | 880 × 1104 |
-| 英文菜单 | `neatquit-menu-en.webp` | 约 600 × 500 |
+| 英文菜单 | `neatquit-menu-en.webp` | 约 574 × 610（按内容裁剪） |
 | 英文关于 | `neatquit-about-en.webp` | 880 × 1104 |
 | 安装窗口 | `neatquit-install*.webp` | 720 × 320 |
 
 菜单保留透明阴影区域；关于窗口保留标准标题栏和窗口圆角。
+
+菜单包含六段：状态、全局配置、辅助退出、定时退出应用、磁盘弹出、应用命令。高度会随待执行任务数量变化，上面的尺寸只是参考，必须按实际内容边界裁剪，不要沿用旧版固定参数。
 
 ## 1. 准备截图构建
 
@@ -123,14 +125,16 @@ screencapture -x -o -l"$ID" /tmp/about-en.png
 
 ## 6. 裁剪与导出
 
-菜单截图包含透明边距，需要裁剪到内容。根据实际像素调整偏移：
+菜单截图包含透明边距，需要裁剪到内容。菜单高度会随任务数量变化，先量原图与内容边界再裁，不要沿用旧参数：
 
 ```sh
-# 中文菜单示例：从 766×748 中裁 486×480
-ffmpeg -y -loglevel error -i /tmp/menu-zh.png -vf "crop=486:480:138:138" /tmp/menu-zh-crop.png
+# 先看原图尺寸，再按实际内容边界填写 W:H:X:Y
+sips -g pixelWidth -g pixelHeight /tmp/menu-zh.png
+ffmpeg -y -loglevel error -i /tmp/menu-zh.png -vf "crop=W:H:X:Y" /tmp/menu-zh-crop.png
 
-# 英文菜单示例：窗口宽度会随文案变化，按内容调整
-ffmpeg -y -loglevel error -i /tmp/menu-en.png -vf "crop=600:500:75:130" /tmp/menu-en-crop.png
+# 英文菜单宽度会随文案变化，同样按内容边界裁剪
+sips -g pixelWidth -g pixelHeight /tmp/menu-en.png
+ffmpeg -y -loglevel error -i /tmp/menu-en.png -vf "crop=W:H:X:Y" /tmp/menu-en-crop.png
 
 # 关于窗口保留完整尺寸
 cp /tmp/about-en.png /tmp/about-en-final.png
@@ -156,9 +160,10 @@ for f in *.webp; do printf "%s " "$f"; sips -g pixelWidth -g pixelHeight "$f" | 
 提交前逐张确认：
 
 - 不包含用户名、主目录路径、桌面壁纸、Dock、通知、浏览器标签或其他窗口
-- 菜单中的「Add <App> to Exceptions」只出现通用应用名
+- 菜单中的「加入例外 / Add to Exceptions」或「设为自动退出 / Set to Auto Quit」只出现通用应用名
+- 菜单与磁盘面板中的磁盘名使用演示卷（例如 Demo / DemoDisk），不要展示真实 U 盘、备份盘或加密卷的名称
 - 关于窗口的致谢名单是应用内公开显示的内容
-- 不展示「例外应用设置」窗口：其中包含本机安装的第三方应用列表
+- 不展示「应用规则」窗口：其中包含本机安装的第三方应用列表
 - 不截整屏，只截目标窗口图层
 
 ## 8. 恢复现场
