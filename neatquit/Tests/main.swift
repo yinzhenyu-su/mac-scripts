@@ -243,3 +243,181 @@ MainActor.assumeIsolated {
     prefs.removePersistentDomain(forName: name)
 }
 print("Schedule store and scheduler cases passed")
+
+MainActor.assumeIsolated {
+    let name = "fun.bgm.neatquit.idle-tests.\(UUID().uuidString)"
+    let prefs = UserDefaults(suiteName: name)!
+    defer { prefs.removePersistentDomain(forName: name) }
+
+    let idleTarget = ScheduleTarget.disk(mainVolumePath: "/Volumes/Ventoy", bsdName: "disk4")
+
+    // 解码：新记录保留方式，旧记录按倒计时读取
+    let idleSample = ScheduledAction(
+        target: idleTarget,
+        displayName: "Ventoy",
+        fireAt: scheduleNow.addingTimeInterval(600),
+        mode: .idle,
+        idleSeconds: 600
+    )
+    let roundTrip = try! JSONDecoder().decode(
+        ScheduledAction.self,
+        from: try! JSONEncoder().encode(idleSample)
+    )
+    precondition(roundTrip.mode == .idle && roundTrip.idleSeconds == 600, "idle fields round trip")
+    precondition(roundTrip.fireAt == idleSample.fireAt, "fireAt round trip")
+
+    let legacyJSON: [String: Any] = [
+        "id": UUID().uuidString,
+        "target": ["kind": "disk", "identifier": "/Volumes/Legacy"],
+        "displayName": "Legacy",
+        "fireAt": scheduleNow.timeIntervalSinceReferenceDate,
+        "state": "armed",
+    ]
+    let legacy = try! JSONDecoder().decode(
+        ScheduledAction.self,
+        from: try! JSONSerialization.data(withJSONObject: legacyJSON)
+    )
+    precondition(legacy.mode == .timed && legacy.idleSeconds == nil, "legacy record defaults to timed")
+
+    // 判定：闲置没有过期窗口
+    precondition(ScheduleDecision.outcome(for: idleSample, now: scheduleNow) == .waiting, "idle waits before threshold")
+    precondition(
+        ScheduleDecision.outcome(for: idleSample, now: scheduleNow.addingTimeInterval(600)) == .fire,
+        "idle fires at threshold"
+    )
+    precondition(
+        ScheduleDecision.outcome(for: idleSample, now: scheduleNow.addingTimeInterval(36_000)) == .fire,
+        "idle never expires"
+    )
+
+    // 存储：方式互斥、覆盖、运行时刷新不落盘
+    let store = ScheduledActionStore(defaults: prefs)
+    store.add(target: idleTarget, displayName: "Ventoy", duration: 600, now: scheduleNow, mode: .idle)
+    precondition(store.actions.count == 1)
+    precondition(store.actions[0].mode == .idle && store.actions[0].idleSeconds == 600)
+    precondition(store.actions[0].fireAt == scheduleNow.addingTimeInterval(600))
+
+    store.add(target: idleTarget, displayName: "Ventoy", duration: 60, now: scheduleNow, mode: .timed)
+    precondition(store.actions.count == 1, "switching mode replaces the rule")
+    precondition(store.actions[0].mode == .timed && store.actions[0].idleSeconds == nil)
+
+    store.add(target: idleTarget, displayName: "Ventoy", duration: 600, now: scheduleNow, mode: .idle)
+    let idleID = store.actions[0].id
+    store.resetIdleStart(id: idleID, seconds: 600, now: scheduleNow.addingTimeInterval(300))
+    precondition(store.actions[0].fireAt == scheduleNow.addingTimeInterval(900))
+    let reloaded = ScheduledActionStore(defaults: prefs)
+    precondition(
+        reloaded.actions[0].fireAt == scheduleNow.addingTimeInterval(600),
+        "runtime idle reset is not persisted"
+    )
+
+    // 调度器：活动重置、到点触发、失败顺延、连续失败上限
+    prefs.removePersistentDomain(forName: name)
+    let schedStore = ScheduledActionStore(defaults: prefs)
+    var clock = scheduleNow
+    var active = false
+    var present = true
+    var accepted = false
+    var performs = 0
+    let scheduler = ScheduledActionScheduler(
+        store: schedStore,
+        now: { clock },
+        isAvailable: { _ in true },
+        isStillPresent: { _ in present },
+        perform: { _, completion in performs += 1; completion(accepted) },
+        isActive: { _ in active }
+    )
+    scheduler.add(target: idleTarget, displayName: "Ventoy", duration: 600, mode: .idle)
+    precondition(schedStore.actions[0].fireAt == scheduleNow.addingTimeInterval(600), "idle starts at creation")
+
+    // 用小步长推进，避免触发「长间隔 = 唤醒」的重置逻辑。
+    @MainActor func advance(_ seconds: TimeInterval) {
+        var remaining = seconds
+        while remaining > 0 {
+            let delta = min(remaining, 30)
+            clock = clock.addingTimeInterval(delta)
+            scheduler.tick()
+            remaining -= delta
+        }
+    }
+
+    active = true
+    advance(100)
+    precondition(schedStore.actions[0].fireAt == clock.addingTimeInterval(600), "activity resets idle start")
+    precondition(performs == 0, "activity never fires")
+
+    active = false
+    advance(600)
+    precondition(performs == 1, "idle fires after threshold")
+    precondition(schedStore.actions[0].state == .armed, "idle failure defers instead of refusing")
+    precondition(schedStore.actions[0].fireAt == clock.addingTimeInterval(600), "deferral restarts the threshold")
+    precondition(
+        ScheduledActionStore(defaults: prefs).actions.count == 1,
+        "deferral re-persists the idle rule after firing"
+    )
+
+    advance(600)
+    precondition(schedStore.actions[0].state == .armed, "second failure still defers")
+
+    // 检测到读写把连续失败计数清零
+    active = true
+    advance(10)
+    active = false
+    precondition(schedStore.actions[0].state == .armed)
+
+    advance(600)
+    precondition(schedStore.actions[0].state == .armed, "activity reset the failure counter")
+    advance(600)
+    precondition(schedStore.actions[0].state == .armed, "second failure after reset")
+    advance(600)
+    precondition(schedStore.actions[0].state == .refused, "third consecutive failure refuses")
+
+    // 手动重试 + 成功复查
+    accepted = true
+    scheduler.retry(id: schedStore.actions[0].id)
+    precondition(schedStore.actions[0].state == .firing, "retry issues a perform request")
+    clock = clock.addingTimeInterval(ScheduleDecision.verificationDelay)
+    present = false
+    scheduler.tick()
+    precondition(schedStore.actions.isEmpty, "successful retry removes the rule")
+
+    // 启动时重置闲置起点
+    prefs.removePersistentDomain(forName: name)
+    let launchStore = ScheduledActionStore(defaults: prefs)
+    launchStore.add(target: idleTarget, displayName: "Ventoy", duration: 600, now: scheduleNow, mode: .idle)
+    let launchScheduler = ScheduledActionScheduler(
+        store: launchStore,
+        now: { scheduleNow.addingTimeInterval(3600) },
+        isAvailable: { _ in true },
+        isStillPresent: { _ in true },
+        perform: { _, completion in completion(false) },
+        isActive: { _ in false }
+    )
+    precondition(
+        launchStore.actions[0].fireAt == scheduleNow.addingTimeInterval(3600 + 600),
+        "scheduler resets idle start on launch"
+    )
+    _ = launchScheduler
+
+    // 长 tick 间隔（睡眠唤醒）重置
+    prefs.removePersistentDomain(forName: name)
+    var wakeClock = scheduleNow
+    let wakeStore = ScheduledActionStore(defaults: prefs)
+    let wakeScheduler = ScheduledActionScheduler(
+        store: wakeStore,
+        now: { wakeClock },
+        isAvailable: { _ in true },
+        isStillPresent: { _ in true },
+        perform: { _, completion in completion(false) },
+        isActive: { _ in false }
+    )
+    wakeScheduler.add(target: idleTarget, displayName: "Ventoy", duration: 600, mode: .idle)
+    wakeScheduler.tick()
+    wakeClock = scheduleNow.addingTimeInterval(7200)
+    wakeScheduler.tick()
+    precondition(
+        wakeStore.actions[0].fireAt == wakeClock.addingTimeInterval(600),
+        "long tick gap resets idle start"
+    )
+}
+print("Idle schedule cases passed")

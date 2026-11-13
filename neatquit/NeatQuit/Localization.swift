@@ -128,10 +128,7 @@ enum L10n {
     static let ejectEntryBase = text("menu.eject")
     static let ejectEntryFormat = text("menu.eject.entry")
     static let ejectEntryPro = text("menu.eject.pro")
-    static let ejectFastFormat = text("menu.eject.fast")
-    static let ejectFastRemainingFormat = text("menu.eject.fast.remaining")
     static let ejectAdd = text("menu.eject.add")
-    static let ejectCancel = text("menu.eject.cancel")
     static let ejectRowFormat = text("menu.eject.row")
     static let ejectRefusedFormat = text("menu.eject.refused")
     static let ejectFiringFormat = text("menu.eject.firing")
@@ -140,6 +137,16 @@ enum L10n {
     static let ejectPanelDisk = text("eject.panel.disk")
     static let ejectPanelNote = text("eject.panel.note")
     static let ejectPanelNoDisks = text("eject.panel.noDisks")
+    static let ejectPanelMode = text("eject.panel.mode")
+    static let ejectPanelModeTimed = text("eject.panel.mode.timed")
+    static let ejectPanelModeIdle = text("eject.panel.mode.idle")
+    static let ejectPanelIdleDuration = text("eject.panel.idleDuration")
+    static let ejectPanelIdleUnsupported = text("eject.panel.idleUnsupported")
+    static let ejectPanelCurrentRule = text("eject.panel.currentRule")
+    static let ejectPanelCancelRule = text("eject.panel.cancelRule")
+    static let ejectPanelStartTimed = text("eject.panel.start.timed")
+    static let ejectPanelStartIdle = text("eject.panel.start.idle")
+    static let close = text("common.close")
     static let ejectNow = text("menu.eject.now")
     static let statusRefusedJoiner = text("status.refused.joiner")
     static let ejectFailedMessage = text("eject.failed.message")
@@ -150,13 +157,28 @@ enum L10n {
         return String(format: ejectEntryFormat, suffix)
     }
 
-    static func ejectFastTitle(_ name: String, remaining: String? = nil) -> String {
-        guard let remaining else { return String(format: ejectFastFormat, name) }
-        return String(format: ejectFastRemainingFormat, name, remaining)
-    }
-
     static func diskRowTitle(name: String, remaining: String) -> String {
         String(format: ejectRowFormat, name, remaining)
+    }
+
+    static func diskIdleRowTitle(name: String, minutes: Int, remaining: String) -> String {
+        String(format: text("menu.eject.row.idle"), name, minutes, remaining)
+    }
+
+    static func diskIdleActiveTitle(_ name: String) -> String {
+        String(format: text("menu.eject.row.idleActive"), name)
+    }
+
+    static func ejectPanelIdleNote(minutes: Int) -> String {
+        String(format: text("eject.panel.note.idle"), minutes)
+    }
+
+    static func ejectPanelCurrentIdle(minutes: Int, remaining: String) -> String {
+        String(format: text("eject.panel.current.idle"), minutes, remaining)
+    }
+
+    static func ejectPanelCurrentTimed(remaining: String) -> String {
+        String(format: text("eject.panel.current.timed"), remaining)
     }
 
     static func diskRefusedTitle(_ name: String) -> String {

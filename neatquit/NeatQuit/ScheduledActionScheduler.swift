@@ -12,6 +12,8 @@ final class ScheduledActionScheduler {
     private let perform: (ScheduledAction, @escaping (Bool) -> Void) -> Void
     private let beginPowerAssertion: (String) -> AnyObject?
     private let endPowerAssertion: (AnyObject?) -> Void
+    /// 闲置规则的活动探测。没有注入时视为始终有活动，避免误弹。
+    private let isActive: (ScheduledAction) -> Bool
 
     /// 可注入的时钟，默认取系统时间。
     var now: () -> Date
@@ -19,6 +21,12 @@ final class ScheduledActionScheduler {
     /// 已发起执行、等待复查的条目。
     private var pendingVerification: [UUID: Date] = [:]
     private var assertions: [UUID: AnyObject] = [:]
+    /// 闲置规则的连续失败次数；检测到读写时清零。
+    private var idleFailures: [UUID: Int] = [:]
+    private var lastTick: Date?
+
+    /// 同一闲置规则连续失败达到该次数后转为「未弹出」，避免无声地无限重试。
+    static let idleFailureLimit = 3
 
     init(
         store: ScheduledActionStore,
@@ -26,6 +34,7 @@ final class ScheduledActionScheduler {
         isAvailable: @escaping (ScheduledAction) -> Bool,
         isStillPresent: @escaping (ScheduledAction) -> Bool,
         perform: @escaping (ScheduledAction, @escaping (Bool) -> Void) -> Void,
+        isActive: @escaping (ScheduledAction) -> Bool = { _ in true },
         beginPowerAssertion: @escaping (String) -> AnyObject? = { _ in nil },
         endPowerAssertion: @escaping (AnyObject?) -> Void = { _ in }
     ) {
@@ -34,25 +43,34 @@ final class ScheduledActionScheduler {
         self.isAvailable = isAvailable
         self.isStillPresent = isStillPresent
         self.perform = perform
+        self.isActive = isActive
         self.beginPowerAssertion = beginPowerAssertion
         self.endPowerAssertion = endPowerAssertion
+        resetIdleStarts(now: now())
     }
 
     // MARK: - 对外操作
 
-    func add(target: ScheduleTarget, displayName: String, duration: TimeInterval) {
-        store.add(target: target, displayName: displayName, duration: duration, now: now())
+    func add(
+        target: ScheduleTarget,
+        displayName: String,
+        duration: TimeInterval,
+        mode: ScheduleMode = .timed
+    ) {
+        store.add(target: target, displayName: displayName, duration: duration, now: now(), mode: mode)
     }
 
     func cancel(id: UUID) {
         store.cancel(id: id)
         pendingVerification.removeValue(forKey: id)
+        idleFailures.removeValue(forKey: id)
         releaseAssertion(id)
     }
 
     func cancelAll() {
         store.cancelAll()
         pendingVerification.removeAll()
+        idleFailures.removeAll()
         for id in assertions.keys { releaseAssertion(id) }
     }
 
@@ -62,21 +80,50 @@ final class ScheduledActionScheduler {
             store.remove(id: id)
             return
         }
+        // 用户明确重试，重新给满失败次数。
+        idleFailures[id] = 0
         attempt(action)
+    }
+
+    /// 启动、唤醒或长时间挂起后，把所有闲置规则的起点重置为当前时刻。
+    func resetIdleStarts(now: Date) {
+        for action in store.actions where action.mode == .idle && action.state == .armed {
+            guard let seconds = action.idleSeconds else { continue }
+            store.resetIdleStart(id: action.id, seconds: seconds, now: now)
+        }
     }
 
     // MARK: - 周期执行
 
     func tick() {
+        let current = now()
+        // 睡眠期间定时器不触发；恢复后第一次 tick 的间隔会很大，视为唤醒边界。
+        if let lastTick, current.timeIntervalSince(lastTick) > 60 {
+            resetIdleStarts(now: current)
+        }
+        lastTick = current
+
         verifyPending()
 
         for action in store.actions where action.state == .armed {
             // 目标已消失（应用退出 / 磁盘卸载），任务直接移除。
             guard isAvailable(action) else {
                 store.remove(id: action.id)
+                idleFailures.removeValue(forKey: action.id)
                 continue
             }
-            switch ScheduleDecision.outcome(fireAt: action.fireAt, now: now()) {
+
+            if action.mode == .idle {
+                if isActive(action) {
+                    idleFailures[action.id] = 0
+                    if let seconds = action.idleSeconds {
+                        store.resetIdleStart(id: action.id, seconds: seconds, now: current)
+                    }
+                    continue
+                }
+            }
+
+            switch ScheduleDecision.outcome(for: action, now: current) {
             case .waiting:
                 continue
             case .fire:
@@ -84,6 +131,7 @@ final class ScheduledActionScheduler {
             case .expired:
                 logger.info("dropped expired action: target=\(action.target.identifier, privacy: .public)")
                 store.remove(id: action.id)
+                idleFailures.removeValue(forKey: action.id)
             }
         }
     }
@@ -101,12 +149,8 @@ final class ScheduledActionScheduler {
                 )
                 if accepted {
                     self.pendingVerification[action.id] = self.now()
-                } else if self.isStillPresent(action) {
-                    self.store.markRefused(id: action.id)
-                    self.releaseAssertion(action.id)
                 } else {
-                    self.store.remove(id: action.id)
-                    self.releaseAssertion(action.id)
+                    self.handleFailure(action)
                 }
             }
         }
@@ -125,12 +169,39 @@ final class ScheduledActionScheduler {
             guard let action = store.actions.first(where: { $0.id == id }) else { continue }
             if isStillPresent(action) {
                 logger.info("perform refused: target=\(action.target.identifier, privacy: .public)")
-                store.markRefused(id: id)
+                handleFailure(action)
             } else {
                 logger.info("perform completed: target=\(action.target.identifier, privacy: .public)")
                 store.remove(id: id)
+                idleFailures.removeValue(forKey: id)
             }
         }
+    }
+
+    /// 倒计时失败立即标记未弹出；闲置失败先当作「仍在使用」顺延，
+    /// 连续失败达到上限才标记，避免播放视频等场景产生噪声。
+    private func handleFailure(_ action: ScheduledAction) {
+        guard isStillPresent(action) else {
+            store.remove(id: action.id)
+            idleFailures.removeValue(forKey: action.id)
+            releaseAssertion(action.id)
+            return
+        }
+
+        guard action.mode == .idle, let seconds = action.idleSeconds else {
+            store.markRefused(id: action.id)
+            releaseAssertion(action.id)
+            return
+        }
+
+        let failures = (idleFailures[action.id] ?? 0) + 1
+        idleFailures[action.id] = failures
+        if failures >= Self.idleFailureLimit {
+            store.markRefused(id: action.id)
+        } else {
+            store.resetIdleStart(id: action.id, seconds: seconds, now: now())
+        }
+        releaseAssertion(action.id)
     }
 
     private func releaseAssertion(_ id: UUID) {

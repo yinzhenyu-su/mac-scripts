@@ -38,14 +38,17 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var authorizationTimer: Timer?
     private var restartInProgress = false
     private let scheduledActions = ScheduledActionStore()
+    private let diskActivity = DiskActivityMonitor()
     private lazy var scheduler = ScheduledActionScheduler(
         store: scheduledActions,
         isAvailable: { [weak self] action in self?.isTargetAvailable(action) ?? false },
         isStillPresent: { [weak self] action in self?.isTargetStillPresent(action) ?? false },
         perform: { [weak self] action, completion in self?.perform(action, completion: completion) },
+        isActive: { [weak self] action in self?.isDiskActive(action) ?? true },
         beginPowerAssertion: { PowerAssertion.begin(reason: "定时任务 \($0)") },
         endPowerAssertion: { PowerAssertion.end($0) }
     )
+    private var wakeObserver: NSObjectProtocol?
     private lazy var baseMenuBarIcon: NSImage? = {
         let image = NSImage(named: "MenuBarIcon")
         image?.isTemplate = true
@@ -71,19 +74,12 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var scheduleEntryItem: NSMenuItem?
     private var scheduleRows: [ScheduleRow] = []
     private var ejectEntryItem: NSMenuItem?
-    private var diskRows: [DiskRow] = []
-    private var availableDisks: [ScheduledDisk] = []
 
     private struct ScheduleRow {
         let id: UUID
         let name: String
+        let kind: ScheduleTarget.Kind
         let item: NSMenuItem
-    }
-
-    private struct DiskRow {
-        let disk: ScheduledDisk
-        let item: NSMenuItem
-        let hadAction: Bool
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -113,7 +109,19 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         menu.delegate = self
         statusItem.menu = menu
         if enabled { _ = monitor.start() }
+        // 触发调度器初始化，让闲置规则在启动时把起点重置为当前时刻。
+        _ = scheduler
         refreshMenu()
+
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.scheduler.resetIdleStarts(now: Date())
+            }
+        }
 
         authorizationTimer = Timer.scheduledTimer(
             // 2 秒足够及时发现授权变化，同时减少空闲唤醒。
@@ -230,7 +238,6 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         scheduleEntryItem = nil
         scheduleRows.removeAll(keepingCapacity: true)
         ejectEntryItem = nil
-        diskRows.removeAll(keepingCapacity: true)
 
         if addStatusSection(to: menu) {
             menu.addItem(.separator())
@@ -464,7 +471,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         for action in ScheduleDecision.ordered(appActions) {
             let item = NSMenuItem(title: scheduleRowTitle(for: action), action: nil, keyEquivalent: "")
             configure(actionRow: item, for: action)
-            scheduleRows.append(ScheduleRow(id: action.id, name: action.displayName, item: item))
+            scheduleRows.append(ScheduleRow(id: action.id, name: action.displayName, kind: action.target.kind, item: item))
             submenu.addItem(item)
         }
 
@@ -486,8 +493,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     @discardableResult
     private func addDiskScheduleSection(to menu: NSMenu) -> Bool {
-        availableDisks = DiskCatalog.ejectableDisks()
-        guard !availableDisks.isEmpty else { return false }
+        // 菜单只保留聚合入口；磁盘列表与全部操作都在面板里。
+        guard !DiskCatalog.ejectableDisks().isEmpty else { return false }
 
         let entitled = license.isEntitled
         let diskActions = scheduledActions.actions.filter { $0.target.kind == .disk }
@@ -511,12 +518,6 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
         ejectEntryItem = entry
         menu.addItem(entry)
-
-        if entitled {
-            for disk in availableDisks {
-                menu.addItem(diskQuickItem(for: disk))
-            }
-        }
         return true
     }
 
@@ -528,7 +529,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         for action in ScheduleDecision.ordered(diskActions) {
             let item = NSMenuItem(title: diskRowTitle(for: action), action: nil, keyEquivalent: "")
             configure(actionRow: item, for: action)
-            scheduleRows.append(ScheduleRow(id: action.id, name: action.displayName, item: item))
+            scheduleRows.append(ScheduleRow(id: action.id, name: action.displayName, kind: action.target.kind, item: item))
             submenu.addItem(item)
         }
 
@@ -544,73 +545,6 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         }
 
         return submenu
-    }
-
-    private func diskQuickItem(for disk: ScheduledDisk) -> NSMenuItem {
-        let existing = scheduledActions.actions.first {
-            $0.target.kind == .disk && $0.target.identifier == disk.mainVolumePath
-        }
-        let title: String
-        if let existing, existing.state == .armed {
-            title = L10n.ejectFastTitle(
-                disk.displayName,
-                remaining: ScheduleDecision.remainingText(fireAt: existing.fireAt, now: Date())
-            )
-        } else {
-            title = L10n.ejectFastTitle(disk.displayName)
-        }
-
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.toolTip = disk.detail
-        guard enabled else {
-            item.isEnabled = false
-            return item
-        }
-
-        let submenu = NSMenu()
-        submenu.autoenablesItems = false
-
-        let ejectNow = NSMenuItem(title: L10n.ejectNow, action: #selector(ejectDiskNow(_:)), keyEquivalent: "")
-        ejectNow.target = self
-        ejectNow.representedObject = [
-            "path": disk.mainVolumePath,
-            "name": disk.displayName,
-        ]
-        submenu.addItem(ejectNow)
-        submenu.addItem(.separator())
-
-        for minutes in Self.schedulePresets {
-            let preset = NSMenuItem(
-                title: L10n.schedulePresetTitle(minutes),
-                action: #selector(startDiskEjectFromPreset(_:)),
-                keyEquivalent: ""
-            )
-            preset.target = self
-            preset.representedObject = [
-                "bsdName": disk.bsdName,
-                "path": disk.mainVolumePath,
-                "name": disk.displayName,
-                "minutes": minutes,
-            ]
-            submenu.addItem(preset)
-        }
-        submenu.addItem(.separator())
-        let custom = NSMenuItem(title: L10n.scheduleCustom, action: #selector(openEjectPanelForDisk(_:)), keyEquivalent: "")
-        custom.target = self
-        custom.representedObject = disk.bsdName
-        submenu.addItem(custom)
-
-        if let existing {
-            submenu.addItem(.separator())
-            let cancel = NSMenuItem(title: L10n.ejectCancel, action: #selector(cancelScheduledAction(_:)), keyEquivalent: "")
-            cancel.target = self
-            cancel.representedObject = existing.id.uuidString
-            submenu.addItem(cancel)
-        }
-
-        item.submenu = submenu
-        diskRows.append(DiskRow(disk: disk, item: item, hadAction: existing != nil))
-        return item
     }
 
     private func configure(actionRow item: NSMenuItem, for action: ScheduledAction) {
@@ -667,8 +601,19 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func diskRowTitle(for action: ScheduledAction) -> String {
         switch action.state {
         case .armed:
-            let remaining = ScheduleDecision.remainingText(fireAt: action.fireAt, now: Date())
-            return L10n.diskRowTitle(name: action.displayName, remaining: remaining)
+            let now = Date()
+            let remaining = ScheduleDecision.remainingText(fireAt: action.fireAt, now: now)
+            guard action.mode == .idle else {
+                return L10n.diskRowTitle(name: action.displayName, remaining: remaining)
+            }
+            if diskActivity.isRecentlyActive(bsdName: action.target.diskBSDName, now: now) {
+                return L10n.diskIdleActiveTitle(action.displayName)
+            }
+            return L10n.diskIdleRowTitle(
+                name: action.displayName,
+                minutes: action.idleMinutes ?? 0,
+                remaining: remaining
+            )
         case .refused:
             return L10n.diskRefusedTitle(action.displayName)
         case .firing:
@@ -696,7 +641,9 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
         for row in scheduleRows {
             guard let action = actions.first(where: { $0.id == row.id }) else {
-                row.item.title = L10n.scheduleEndedTitle(row.name)
+                row.item.title = row.kind == .disk
+                    ? L10n.diskEndedTitle(row.name)
+                    : L10n.scheduleEndedTitle(row.name)
                 row.item.isEnabled = false
                 row.item.action = nil
                 row.item.toolTip = nil
@@ -723,31 +670,6 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             }
         }
 
-        for row in diskRows {
-            guard let action = actions.first(where: {
-                $0.target.kind == .disk && $0.target.identifier == row.disk.mainVolumePath
-            }) else {
-                if row.hadAction {
-                    row.item.title = L10n.diskEndedTitle(row.disk.displayName)
-                    row.item.isEnabled = false
-                } else {
-                    row.item.title = L10n.ejectFastTitle(row.disk.displayName)
-                    row.item.isEnabled = true
-                }
-                continue
-            }
-            switch action.state {
-            case .armed:
-                row.item.title = L10n.ejectFastTitle(
-                    row.disk.displayName,
-                    remaining: ScheduleDecision.remainingText(fireAt: action.fireAt, now: now)
-                )
-            case .refused:
-                row.item.title = L10n.diskRefusedTitle(row.disk.displayName)
-            case .firing:
-                row.item.title = L10n.diskFiringTitle(row.disk.displayName)
-            }
-        }
     }
 
     private func startMenuCountdown() {
@@ -811,10 +733,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             case (.application, .firing):
                 lines += "\n" + L10n.scheduleFiringTitle(action.displayName)
             case (.disk, .armed):
-                lines += "\n" + L10n.diskRowTitle(
-                    name: action.displayName,
-                    remaining: ScheduleDecision.remainingText(fireAt: action.fireAt, now: now)
-                )
+                lines += "\n" + diskRowTitle(for: action)
             case (.disk, .refused):
                 lines += "\n" + L10n.diskRefusedTitle(action.displayName)
             case (.disk, .firing):
@@ -952,25 +871,17 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
     // MARK: - 定时弹出硬盘
 
-    @objc private func startDiskEjectFromPreset(_ sender: NSMenuItem) {
-        guard license.isEntitled, enabled else { return }
-        guard let info = sender.representedObject as? [String: Any],
-              let bsdName = info["bsdName"] as? String,
-              let path = info["path"] as? String,
-              let name = info["name"] as? String,
-              let minutes = info["minutes"] as? Int else { return }
-        startDiskEject(bsdName: bsdName, mainVolumePath: path, displayName: name, minutes: minutes)
-    }
-
-    @objc private func ejectDiskNow(_ sender: NSMenuItem) {
+    /// 面板里的「立即弹出」：不创建规则，成功后关闭面板。
+    private func ejectNow(_ disk: ScheduledDisk) {
         guard license.isEntitled else { openLicenseWindow(); return }
         guard enabled else { return }
-        guard let info = sender.representedObject as? [String: Any],
-              let path = info["path"] as? String,
-              let name = info["name"] as? String else { return }
-        DiskEjector.eject(mainVolumePath: path) { [weak self] success in
-            guard let self, !success else { return }
-            self.showEjectFailure(name: name)
+        DiskEjector.eject(mainVolumePath: disk.mainVolumePath) { [weak self] success in
+            guard let self else { return }
+            if success {
+                self.closeEjectPanel()
+            } else {
+                self.showEjectFailure(name: disk.displayName)
+            }
         }
     }
 
@@ -989,13 +900,6 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         presentEjectPanel(preselecting: nil, minutes: 30)
     }
 
-    @objc private func openEjectPanelForDisk(_ sender: NSMenuItem) {
-        guard license.isEntitled else { openLicenseWindow(); return }
-        guard enabled else { showScheduleDisabledAlert(); return }
-        guard let bsdName = sender.representedObject as? String else { return }
-        presentEjectPanel(preselecting: bsdName, minutes: 30, prefersCustom: true)
-    }
-
     private func presentEjectPanel(
         preselecting bsdName: String?,
         minutes: Int,
@@ -1004,20 +908,46 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         let disks = DiskCatalog.ejectableDisks()
         guard !disks.isEmpty else { return }
 
+        let diskRules = Dictionary(
+            uniqueKeysWithValues: scheduledActions.actions
+                .filter { $0.target.kind == .disk }
+                .map { ($0.target.identifier, $0) }
+        )
+        let idleSupport = Dictionary(
+            uniqueKeysWithValues: disks.map {
+                ($0.bsdName, diskActivity.supportsActivity(bsdName: $0.bsdName))
+            }
+        )
+        let initialDisk = disks.first { $0.bsdName == bsdName } ?? disks.first
+        let initialRule = initialDisk.flatMap { diskRules[$0.mainVolumePath] }
+        let initialMode = initialRule?.mode ?? .timed
+        let initialMinutes: Int = {
+            guard let initialRule else { return minutes }
+            if let idle = initialRule.idleMinutes { return idle }
+            let remaining = Int((initialRule.fireAt.timeIntervalSinceNow / 60).rounded())
+            return max(1, remaining)
+        }()
+
         let view = EjectPanelView(
             disks: disks,
             initialDiskID: bsdName ?? disks.first?.bsdName,
-            initialMinutes: minutes,
+            initialMode: initialMode,
+            initialMinutes: initialMinutes,
             prefersCustomDuration: prefersCustom,
-            onStart: { [weak self] disk, minutes in
+            scheduledActions: scheduledActions,
+            idleSupport: idleSupport,
+            onStart: { [weak self] disk, mode, minutes in
                 self?.startDiskEject(
                     bsdName: disk.bsdName,
                     mainVolumePath: disk.mainVolumePath,
                     displayName: disk.displayName,
-                    minutes: minutes
+                    minutes: minutes,
+                    mode: mode
                 )
                 self?.closeEjectPanel()
             },
+            onEjectNow: { [weak self] disk in self?.ejectNow(disk) },
+            onCancelRule: { [weak self] action in self?.scheduler.cancel(id: action.id) },
             onCancel: { [weak self] in self?.closeEjectPanel() }
         )
 
@@ -1049,15 +979,28 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         ejectWindow?.orderOut(nil)
     }
 
-    private func startDiskEject(bsdName: String, mainVolumePath: String, displayName: String, minutes: Int) {
+    private func startDiskEject(
+        bsdName: String,
+        mainVolumePath: String,
+        displayName: String,
+        minutes: Int,
+        mode: ScheduleMode
+    ) {
         scheduler.add(
             target: .disk(mainVolumePath: mainVolumePath, bsdName: bsdName),
             displayName: displayName,
-            duration: TimeInterval(minutes * 60)
+            duration: TimeInterval(minutes * 60),
+            mode: mode
         )
     }
 
     // MARK: - 调度器桥接
+
+    /// 闲置规则的活动探测：读不到整盘计数时按「有活动」处理，绝不据此弹盘。
+    private func isDiskActive(_ action: ScheduledAction) -> Bool {
+        guard action.mode == .idle, let bsdName = action.target.diskBSDName else { return true }
+        return diskActivity.hasActivity(bsdName: bsdName)
+    }
 
     private func isTargetAvailable(_ action: ScheduledAction) -> Bool {
         switch action.target.kind {
@@ -1110,6 +1053,9 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     func applicationWillTerminate(_ notification: Notification) {
         stopMenuCountdown()
         authorizationTimer?.invalidate()
+        if let wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
+        }
     }
 
     @objc private func toggleKeyboard() {

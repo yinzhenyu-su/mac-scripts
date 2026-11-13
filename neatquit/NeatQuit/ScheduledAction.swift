@@ -24,7 +24,15 @@ struct ScheduleTarget: Codable, Equatable {
     var mainVolumePath: String? { kind == .disk ? identifier : nil }
 }
 
-/// 一次性的定时任务。只有 `armed` 会被持久化。
+/// 磁盘弹出规则的触发方式。
+enum ScheduleMode: String, Codable {
+    /// 到点触发，`fireAt` 是绝对时刻。
+    case timed
+    /// 连续无读写达到阈值后触发，`fireAt` 是「闲置起点 + 阈值」的派生值。
+    case idle
+}
+
+/// 一次性的弹出 / 退出任务。只有 `armed` 会被持久化。
 struct ScheduledAction: Codable, Equatable, Identifiable {
     enum State: String, Codable {
         /// 正常倒计时中，写入偏好设置。
@@ -38,7 +46,12 @@ struct ScheduledAction: Codable, Equatable, Identifiable {
     let id: UUID
     var target: ScheduleTarget
     let displayName: String
+    /// 下一次应当触发的时刻。倒计时为创建时算出的绝对时刻；
+    /// 闲置模式由调度器在每次检测到读写时重新计算，不依赖持久化的历史值。
     var fireAt: Date
+    var mode: ScheduleMode
+    /// 闲置模式的阈值秒数；倒计时模式为 nil。
+    var idleSeconds: TimeInterval?
     var state: State
 
     init(
@@ -46,13 +59,39 @@ struct ScheduledAction: Codable, Equatable, Identifiable {
         target: ScheduleTarget,
         displayName: String,
         fireAt: Date,
-        state: State = .armed
+        state: State = .armed,
+        mode: ScheduleMode = .timed,
+        idleSeconds: TimeInterval? = nil
     ) {
         self.id = id
         self.target = target
         self.displayName = displayName
         self.fireAt = fireAt
         self.state = state
+        self.mode = mode
+        self.idleSeconds = idleSeconds
+    }
+
+    /// 闲置规则的阈值分钟数，用于菜单与面板文案。
+    var idleMinutes: Int? {
+        guard mode == .idle, let idleSeconds else { return nil }
+        return max(1, Int(idleSeconds / 60))
+    }
+
+    // 旧记录只有 fireAt，没有 mode / idleSeconds：按倒计时读取。
+    private enum CodingKeys: String, CodingKey {
+        case id, target, displayName, fireAt, mode, idleSeconds, state
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        target = try container.decode(ScheduleTarget.self, forKey: .target)
+        displayName = try container.decode(String.self, forKey: .displayName)
+        fireAt = try container.decode(Date.self, forKey: .fireAt)
+        mode = try container.decodeIfPresent(ScheduleMode.self, forKey: .mode) ?? .timed
+        idleSeconds = try container.decodeIfPresent(TimeInterval.self, forKey: .idleSeconds)
+        state = try container.decodeIfPresent(State.self, forKey: .state) ?? .armed
     }
 }
 
@@ -64,7 +103,7 @@ enum ScheduleDecision {
         case expired
     }
 
-    /// 超过计划时刻 5 分钟内补跑，超过则丢弃。
+    /// 超过计划时刻 5 分钟内补跑，超过则丢弃。只适用于倒计时。
     static let overdueWindow: TimeInterval = 5 * 60
 
     /// 复查执行结果的等待时长。
@@ -79,6 +118,16 @@ enum ScheduleDecision {
         if overdue < 0 { return .waiting }
         if overdue <= window { return .fire }
         return .expired
+    }
+
+    /// 闲置规则没有过期窗口：只要还没到阈值就继续等待，到了就触发。
+    static func outcome(for action: ScheduledAction, now: Date) -> Outcome {
+        switch action.mode {
+        case .timed:
+            return outcome(fireAt: action.fireAt, now: now)
+        case .idle:
+            return now >= action.fireAt ? .fire : .waiting
+        }
     }
 
     static func isDue(fireAt: Date, now: Date) -> Bool {

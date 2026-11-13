@@ -147,35 +147,82 @@ struct ScheduleEditorView: View {
     }
 }
 
-/// 「添加定时弹出」面板。形状与应用面板一致，只是目标换成磁盘。
+/// 「磁盘弹出」面板：磁盘选择、立即弹出、触发方式、时长与当前规则都集中在这里。
 struct EjectPanelView: View {
     let disks: [ScheduledDisk]
     let initialDiskID: String?
+    let initialMode: ScheduleMode
     let initialMinutes: Int
-    let onStart: (ScheduledDisk, Int) -> Void
+    let prefersCustomDuration: Bool
+    /// 直接观察规则存储，取消或触发后「当前规则」行能立即刷新。
+    @ObservedObject var scheduledActions: ScheduledActionStore
+    /// 以整盘 BSD 名为键的活动计数可用性。
+    let idleSupport: [String: Bool]
+    let onStart: (ScheduledDisk, ScheduleMode, Int) -> Void
+    let onEjectNow: (ScheduledDisk) -> Void
+    let onCancelRule: (ScheduledAction) -> Void
     let onCancel: () -> Void
 
     @State private var selectedDiskID: String
+    @State private var selectedMode: ScheduleMode
     @State private var selectedMinutes: Int
     @State private var customText: String
 
     init(
         disks: [ScheduledDisk],
         initialDiskID: String?,
+        initialMode: ScheduleMode,
         initialMinutes: Int,
         prefersCustomDuration: Bool = false,
-        onStart: @escaping (ScheduledDisk, Int) -> Void,
+        scheduledActions: ScheduledActionStore,
+        idleSupport: [String: Bool] = [:],
+        onStart: @escaping (ScheduledDisk, ScheduleMode, Int) -> Void,
+        onEjectNow: @escaping (ScheduledDisk) -> Void,
+        onCancelRule: @escaping (ScheduledAction) -> Void,
         onCancel: @escaping () -> Void
     ) {
         self.disks = disks
         self.initialDiskID = initialDiskID
+        self.initialMode = initialMode
         self.initialMinutes = initialMinutes
+        self.prefersCustomDuration = prefersCustomDuration
+        self.scheduledActions = scheduledActions
+        self.idleSupport = idleSupport
         self.onStart = onStart
+        self.onEjectNow = onEjectNow
+        self.onCancelRule = onCancelRule
         self.onCancel = onCancel
         _selectedDiskID = State(initialValue: initialDiskID ?? disks.first?.bsdName ?? "")
+        _selectedMode = State(initialValue: initialMode)
         let initial = DurationInput.initialState(minutes: initialMinutes, prefersCustom: prefersCustomDuration)
         _selectedMinutes = State(initialValue: initial.selected)
         _customText = State(initialValue: initial.custom)
+    }
+
+    private var selectedDisk: ScheduledDisk? {
+        disks.first { $0.bsdName == selectedDiskID }
+    }
+
+    private var rules: [String: ScheduledAction] {
+        Dictionary(
+            uniqueKeysWithValues: scheduledActions.actions
+                .filter { $0.target.kind == .disk }
+                .map { ($0.target.identifier, $0) }
+        )
+    }
+
+    private var currentRule: ScheduledAction? {
+        guard let selectedDisk else { return nil }
+        return rules[selectedDisk.mainVolumePath]
+    }
+
+    private var idleAvailable: Bool {
+        guard let selectedDisk else { return false }
+        return idleSupport[selectedDisk.bsdName] ?? false
+    }
+
+    private var effectiveMode: ScheduleMode {
+        selectedMode == .idle && !idleAvailable ? .timed : selectedMode
     }
 
     private var resolvedMinutes: Int? {
@@ -200,13 +247,34 @@ struct EjectPanelView: View {
                         }
                     }
                     .labelsHidden()
+                    Button(L10n.ejectNow) {
+                        if let selectedDisk { onEjectNow(selectedDisk) }
+                    }
+                    .disabled(selectedDisk == nil)
+                    Spacer(minLength: 0)
+                }
+
+                HStack(alignment: .top, spacing: 10) {
+                    Text(L10n.ejectPanelMode)
+                        .frame(width: 58, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 6) {
+                        modeRow(.timed, title: L10n.ejectPanelModeTimed)
+                        modeRow(.idle, title: L10n.ejectPanelModeIdle)
+                        if !idleAvailable {
+                            Text(L10n.ejectPanelIdleUnsupported)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     Spacer(minLength: 0)
                 }
 
                 DurationSelector(
                     selectedMinutes: $selectedMinutes,
                     customText: $customText,
-                    label: L10n.schedulePanelDuration
+                    label: effectiveMode == .idle
+                        ? L10n.ejectPanelIdleDuration
+                        : L10n.schedulePanelDuration
                 )
 
                 if selectedMinutes == 0, !customText.isEmpty, resolvedMinutes == nil {
@@ -215,29 +283,105 @@ struct EjectPanelView: View {
                         .foregroundStyle(.red)
                 }
 
-                Text(L10n.ejectPanelNote)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let currentRule {
+                    currentRuleRow(currentRule)
+                }
+
+                Text(
+                    effectiveMode == .idle
+                        ? L10n.ejectPanelIdleNote(minutes: resolvedMinutes ?? 0)
+                        : L10n.ejectPanelNote
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
 
             HStack(spacing: 10) {
                 Spacer()
-                Button(L10n.cancel) { onCancel() }
-                Button(L10n.schedulePanelStart) { start() }
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(resolvedMinutes == nil || selectedDiskID.isEmpty)
+                Button(L10n.close) { onCancel() }
+                Button(effectiveMode == .idle ? L10n.ejectPanelStartIdle : L10n.ejectPanelStartTimed) {
+                    start()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(resolvedMinutes == nil || selectedDiskID.isEmpty)
             }
         }
         .padding(20)
-        .frame(width: 460)
+        .frame(width: 480)
+        .onChange(of: selectedDiskID) { _ in
+            syncToSelectedDisk()
+        }
+    }
+
+    private func modeRow(_ mode: ScheduleMode, title: String) -> some View {
+        let disabled = mode == .idle && !idleAvailable
+        return Button {
+            selectedMode = mode
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: selectedMode == mode ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(disabled ? Color.secondary : Color.accentColor)
+                Text(title)
+                    .foregroundStyle(disabled ? .secondary : .primary)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+
+    private func currentRuleRow(_ rule: ScheduledAction) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(L10n.ejectPanelCurrentRule)
+                .frame(width: 58, alignment: .leading)
+            Text(currentRuleTitle(rule))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Button(L10n.ejectPanelCancelRule) { onCancelRule(rule) }
+        }
+    }
+
+    private func currentRuleTitle(_ rule: ScheduledAction) -> String {
+        switch rule.state {
+        case .refused:
+            return L10n.diskRefusedTitle(rule.displayName)
+        case .firing:
+            return L10n.diskFiringTitle(rule.displayName)
+        case .armed:
+            let remaining = ScheduleDecision.remainingText(fireAt: rule.fireAt, now: Date())
+            if let minutes = rule.idleMinutes {
+                return L10n.ejectPanelCurrentIdle(minutes: minutes, remaining: remaining)
+            }
+            return L10n.ejectPanelCurrentTimed(remaining: remaining)
+        }
+    }
+
+    /// 切换磁盘时同步该磁盘已有的规则；没有规则则保留当前方式与时长。
+    private func syncToSelectedDisk() {
+        guard let selectedDisk else { return }
+        if let rule = rules[selectedDisk.mainVolumePath] {
+            selectedMode = rule.mode
+            let minutes: Int
+            if let idle = rule.idleMinutes {
+                minutes = idle
+            } else {
+                minutes = max(1, Int((rule.fireAt.timeIntervalSinceNow / 60).rounded()))
+            }
+            let state = DurationInput.initialState(
+                minutes: minutes,
+                prefersCustom: !DurationInput.presets.contains(minutes)
+            )
+            selectedMinutes = state.selected
+            customText = state.custom
+        }
+        if selectedMode == .idle, !(idleSupport[selectedDisk.bsdName] ?? false) {
+            selectedMode = .timed
+        }
     }
 
     private func start() {
-        guard let minutes = resolvedMinutes,
-              let disk = disks.first(where: { $0.bsdName == selectedDiskID })
-        else { return }
-        onStart(disk, minutes)
+        guard let minutes = resolvedMinutes, let disk = selectedDisk else { return }
+        onStart(disk, effectiveMode, minutes)
     }
 }
 

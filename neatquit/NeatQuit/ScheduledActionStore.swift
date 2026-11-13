@@ -31,18 +31,34 @@ final class ScheduledActionStore: ObservableObject {
         target: ScheduleTarget,
         displayName: String,
         duration: TimeInterval,
-        now: Date = Date()
+        now: Date = Date(),
+        mode: ScheduleMode = .timed
     ) {
         guard duration > 0 else { return }
-        // 同一目标再设一次视为覆盖，不叠加。
+        // 同一目标再设一次视为覆盖，不叠加；切换方式也走这里。
         actions.removeAll { $0.target.identifier == target.identifier }
         actions.append(ScheduledAction(
             target: target,
             displayName: displayName,
-            fireAt: now.addingTimeInterval(duration)
+            fireAt: now.addingTimeInterval(duration),
+            mode: mode,
+            idleSeconds: mode == .idle ? duration : nil
         ))
         persist()
         notify()
+    }
+
+    /// 闲置规则检测到读写或失败顺延时刷新下一次触发时刻。
+    /// 这是高频运行时状态：不落盘，也不触发菜单重建，菜单的 1 秒计时器会直接读到新值。
+    func resetIdleStart(id: UUID, seconds: TimeInterval, now: Date) {
+        guard seconds > 0,
+              let index = actions.firstIndex(where: { $0.id == id }) else { return }
+        // 失败顺延会把条目从 firing 拉回 armed；firing 不落盘，这里必须补写，
+        // 否则重启后规则会丢失。活动重置时条目本来就是 armed，无需重复写盘。
+        let wasFiring = actions[index].state == .firing
+        actions[index].fireAt = now.addingTimeInterval(seconds)
+        actions[index].state = .armed
+        if wasFiring { persist() }
     }
 
     func cancel(id: UUID) {
