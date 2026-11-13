@@ -76,6 +76,27 @@ open "/Applications/智能退出.app"
 
 菜单栏中的“⌘W 智能退出”可单独开启，默认关闭。开启后快捷键仍先由目标 App 正常处理；只有原本聚焦的是最后一个标准窗口，且该 App 的窗口已关闭或从屏幕消失时，才请求它正常退出。这样也能处理 Discord 一类将窗口隐藏、但仍保留辅助功能窗口对象的 App。关闭浏览器普通标签页、保存对话框阻止关闭或窗口信息不可读取时不会额外退出。若系统要求输入监控权限，菜单会显示授权入口；键盘监听无法启动时，鼠标关闭按钮功能仍可继续工作。
 
+## 定时退出应用
+
+菜单中的「定时退出应用」用于在指定倒计时结束后主动退出某个 App，与「关窗即退」并列，但**不共用名单**：
+
+- 目标是创建时显式指定的单个 App，只能从当前正在运行的普通应用中选择，倒计时从创建时刻开始。
+- 不读取「应用规则」的排除列表、仅包含列表或模式：即使目标在例外列表里，到点也会退出；「仅包含」模式也不会限制可选目标。
+- 到点只发起正常退出请求，不强制终止。目标 App 弹存盘对话框时会被标记为「未退出」，可在子菜单里手动重试。
+- 超过计划时刻 5 分钟内会补跑；超过 5 分钟（包括睡眠跨过、应用重启后才恢复）直接丢弃并写一条日志，不会一次性退出多个 App。
+- 「启用智能退出」是全局总开关：关闭时会先确认，确认后取消全部待执行定时任务；关闭期间无法创建新的定时任务。
+- 倒计时只在菜单打开期间刷新，不新增常驻定时器。定时退出应用属于 Pro 功能。
+
+## 定时弹出硬盘
+
+菜单中的「定时弹出硬盘」为可移除磁盘设定倒计时，到点自动卸载并弹出。它与定时退出应用之间用分隔线隔开，没有可弹出磁盘时整段消失。
+
+- 目标单位是**物理磁盘**：一块 U 盘上即使有多个分区（例如 Ventoy 与 VTOYEFI），菜单里也只出现一行。
+- 显示名取主卷名（可浏览、非只读、容量最大的卷），回退到整盘媒体名；tooltip 显示厂商、型号与容量。
+- 到点通过系统 `diskutil eject` 卸载并弹出整盘，处理 APFS 容器、多卷盘与磁盘映像。**不强制弹出**：磁盘被占用时弹出失败，条目标记为「未弹出」，可手动重试。
+- 磁盘被拔出时计时器自动消失；超过计划时刻 5 分钟的判定规则与定时退出应用一致。
+- 定时弹出硬盘属于 Pro 功能，同样受「启用智能退出」总开关控制。
+
 应用包名称为 `智能退出.app`。应用程序图标使用 `NeatQuit/AppIcon.icon`，其中 `Assets/icon-default.png` 为默认外观，`Assets/icon-dark.png` 为深色外观；macOS 26+ 按系统图标外观设置选择。旧系统保留 `NeatQuit/Assets.xcassets/AppIcon.appiconset` 中的默认图标。菜单栏模板图标仍位于 `NeatQuit/Assets.xcassets`。不要运行旧版 `Assets/GenerateIcons.swift`，它会覆盖当前图标。
 
 此工程没有启用 App Sandbox，因为沙盒应用无法通过 `NSRunningApplication.terminate()` 请求其他 App 退出。向普通用户分发时，需在 Xcode 配置开发者签名并对 App 进行公证。
@@ -93,7 +114,7 @@ open "/Applications/智能退出.app"
 
 ```sh
 mkdir -p build/Tests
-swiftc NeatQuit/RuleStore.swift Tests/main.swift -o build/Tests/neatquit-rules-test
+swiftc NeatQuit/RuleStore.swift NeatQuit/ScheduledAction.swift NeatQuit/ScheduledActionStore.swift NeatQuit/ScheduledActionScheduler.swift NeatQuit/ScheduledDisk.swift Tests/main.swift -o build/Tests/neatquit-rules-test
 build/Tests/neatquit-rules-test
 ```
 
@@ -102,7 +123,7 @@ build/Tests/neatquit-rules-test
 Neat Quit 采用「免费 + Pro 买断」：
 
 - 免费版：红色关闭按钮智能退出、登录时启动、菜单栏开关
-- Pro：⌘W 智能退出、应用规则（排除 / 仅包含模式）
+- Pro：⌘W 智能退出、应用规则（排除 / 仅包含模式）、定时退出应用、定时弹出硬盘
 - 新用户首次启动获得 7 天全功能试用
 - 1.3.6 及更早版本中用过 ⌘W、例外列表或主开关的用户，升级后自动保留 Pro
 
