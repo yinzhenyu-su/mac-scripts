@@ -169,6 +169,20 @@ enum L10n {
         String(format: text("menu.eject.row.idleActive"), name)
     }
 
+    static func diskAccessTitle(_ name: String) -> String {
+        String(format: text("disk.access.title"), name)
+    }
+
+    static let diskAccessMessage = text("disk.access.message")
+    static let diskAccessOpenSettings = text("disk.access.openSettings")
+
+    static let diskAccessIntroTitle = text("disk.access.intro.title")
+    static let diskAccessContinue = text("disk.access.continue")
+
+    static func diskAccessIntroMessage(_ name: String) -> String {
+        String(format: text("disk.access.intro.message"), name)
+    }
+
     static func ejectPanelIdleNote(minutes: Int) -> String {
         String(format: text("eject.panel.note.idle"), minutes)
     }

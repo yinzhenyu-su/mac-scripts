@@ -185,3 +185,11 @@
 "status.refused.disk" = "%@ 未弹出";
 "status.refused.more" = "等 %d 个";
 "status.refused.joiner" = "、";
+
+"disk.access.title" = "需要访问「%@」";
+"disk.access.message" = "macOS 还没有允许智能退出访问这块磁盘。请在「系统设置 → 隐私与安全性 → 文件与文件夹」中允许访问可移除宗卷，然后重试。";
+"disk.access.openSettings" = "打开系统设置";
+
+"disk.access.intro.title" = "需要磁盘访问权限";
+"disk.access.intro.message" = "为了在倒计时结束时自动弹出「%@」，智能退出需要访问这块磁盘。接下来系统会请求「可移除宗卷」权限，请选择「允许」。";
+"disk.access.continue" = "继续";

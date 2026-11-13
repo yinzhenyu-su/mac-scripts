@@ -875,6 +875,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private func ejectNow(_ disk: ScheduledDisk) {
         guard license.isEntitled else { openLicenseWindow(); return }
         guard enabled else { return }
+        guard ensureDiskAccess(name: disk.displayName, path: disk.mainVolumePath) else { return }
         DiskEjector.eject(mainVolumePath: disk.mainVolumePath) { [weak self] success in
             guard let self else { return }
             if success {
@@ -937,14 +938,15 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             scheduledActions: scheduledActions,
             idleSupport: idleSupport,
             onStart: { [weak self] disk, mode, minutes in
-                self?.startDiskEject(
+                guard let self else { return }
+                let started = self.startDiskEject(
                     bsdName: disk.bsdName,
                     mainVolumePath: disk.mainVolumePath,
                     displayName: disk.displayName,
                     minutes: minutes,
                     mode: mode
                 )
-                self?.closeEjectPanel()
+                if started { self.closeEjectPanel() }
             },
             onEjectNow: { [weak self] disk in self?.ejectNow(disk) },
             onCancelRule: { [weak self] action in self?.scheduler.cancel(id: action.id) },
@@ -979,19 +981,59 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         ejectWindow?.orderOut(nil)
     }
 
+    @discardableResult
     private func startDiskEject(
         bsdName: String,
         mainVolumePath: String,
         displayName: String,
         minutes: Int,
         mode: ScheduleMode
-    ) {
+    ) -> Bool {
+        // 先读取卷根目录，把「可移除宗卷」授权提前到创建时刻；
+        // 否则到点才弹系统授权，无人值守的弹出会失败。
+        guard ensureDiskAccess(name: displayName, path: mainVolumePath) else { return false }
         scheduler.add(
             target: .disk(mainVolumePath: mainVolumePath, bsdName: bsdName),
             displayName: displayName,
             duration: TimeInterval(minutes * 60),
             mode: mode
         )
+        return true
+    }
+
+    /// 第一次创建磁盘任务时先用应用内说明解释为什么需要授权，再触发系统授权。
+    /// 已说明过就不再重复，避免每次创建都多一个对话框。
+    private func ensureDiskAccess(name: String, path: String) -> Bool {
+        let explainedKey = "diskAccess.explained"
+        if !UserDefaults.standard.bool(forKey: explainedKey) {
+            let intro = NSAlert()
+            intro.messageText = L10n.diskAccessIntroTitle
+            intro.informativeText = L10n.diskAccessIntroMessage(name)
+            intro.addButton(withTitle: L10n.diskAccessContinue)
+            intro.addButton(withTitle: L10n.cancel)
+            NSApp.activate(ignoringOtherApps: true)
+            guard intro.runModal() == .alertFirstButtonReturn else { return false }
+            UserDefaults.standard.set(true, forKey: explainedKey)
+        }
+
+        guard DiskAccess.requestAccess(to: path) else {
+            showDiskAccessDenied(name: name)
+            return false
+        }
+        return true
+    }
+
+    private func showDiskAccessDenied(name: String) {
+        let alert = NSAlert()
+        alert.messageText = L10n.diskAccessTitle(name)
+        alert.informativeText = L10n.diskAccessMessage
+        alert.addButton(withTitle: L10n.diskAccessOpenSettings)
+        alert.addButton(withTitle: L10n.cancel)
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_RemovableVolumes")!
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - 调度器桥接
@@ -1016,9 +1058,8 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         case .application:
             return AppTerminator.isRunning(bundleID: action.target.identifier)
         case .disk:
-            if let bsdName = action.target.diskBSDName, DiskCatalog.isDiskPresent(bsdName: bsdName) {
-                return true
-            }
+            // 卷已卸载就视为完成。设备节点可能比卷晚几秒消失，
+            // 若等设备节点消失再判定，会把成功的弹出误标为「未弹出」。
             return DiskCatalog.isVolumeMounted(path: action.target.identifier)
         }
     }

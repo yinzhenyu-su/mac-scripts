@@ -135,6 +135,12 @@ precondition(DiskNaming.displayName(volumes: [], mediaName: "SanDisk Ultra USB 3
 precondition(DiskNaming.displayName(volumes: [], mediaName: nil, vendor: "SanDisk", model: "Ultra USB 3.0") == "SanDisk Ultra USB 3.0", "vendor and model fallback")
 precondition(DiskNaming.detail(vendor: "SanDisk", model: "Ultra USB 3.0", capacity: 15_000_000_000).contains("SanDisk"), "detail includes vendor")
 
+precondition(DiskAccess.requestAccess(to: NSTemporaryDirectory()), "temporary directory is readable")
+precondition(
+    !DiskAccess.requestAccess(to: "/nonexistent-\(UUID().uuidString)"),
+    "missing path is not readable"
+)
+
 print("Schedule decision cases passed")
 
 MainActor.assumeIsolated {
@@ -239,6 +245,20 @@ MainActor.assumeIsolated {
     scheduler.add(target: .disk(mainVolumePath: "/Volumes/Gone", bsdName: "disk8"), displayName: "Gone", duration: 600)
     scheduler.tick()
     precondition(schedStore.actions.isEmpty && performCalls == 3, "missing target removes the timer")
+
+    // 未弹出目标消失后自动移除
+    available = true
+    stillPresent = true
+    scheduler.add(target: .disk(mainVolumePath: "/Volumes/Refused", bsdName: "disk9"), displayName: "Refused", duration: 10)
+    clock = clock.addingTimeInterval(10)
+    scheduler.tick()
+    clock = clock.addingTimeInterval(ScheduleDecision.verificationDelay)
+    scheduler.tick()
+    precondition(schedStore.actions.first?.state == .refused, "refused before target disappears")
+    stillPresent = false
+    clock = clock.addingTimeInterval(2)
+    scheduler.tick()
+    precondition(schedStore.actions.isEmpty, "refused action is removed after its target disappears")
 
     prefs.removePersistentDomain(forName: name)
 }

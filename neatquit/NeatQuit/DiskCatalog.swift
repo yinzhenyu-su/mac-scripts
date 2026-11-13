@@ -98,10 +98,4 @@ enum DiskCatalog {
     static func isVolumeMounted(path: String) -> Bool {
         FileManager.default.fileExists(atPath: path)
     }
-
-    /// 触发后复查：整盘设备是否仍然存在（卷已卸载但设备未弹出时仍为 true）。
-    static func isDiskPresent(bsdName: String) -> Bool {
-        guard let session = DASessionCreate(nil) else { return true }
-        return DADiskCreateFromBSDName(nil, session, bsdName) != nil
-    }
 }

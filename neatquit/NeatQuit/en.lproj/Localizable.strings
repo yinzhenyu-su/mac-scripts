@@ -185,3 +185,11 @@
 "status.refused.disk" = "%@ didn't eject";
 "status.refused.more" = "and %d more";
 "status.refused.joiner" = ", ";
+
+"disk.access.title" = "Access to \"%@\" is required";
+"disk.access.message" = "macOS has not allowed Neat Quit to access this disk. Allow access to removable volumes in System Settings → Privacy & Security → Files and Folders, then try again.";
+"disk.access.openSettings" = "Open System Settings";
+
+"disk.access.intro.title" = "Disk Access Required";
+"disk.access.intro.message" = "To eject \"%@\" when the timer ends, Neat Quit needs access to this disk. macOS will ask for Removable Volumes access next; choose Allow.";
+"disk.access.continue" = "Continue";

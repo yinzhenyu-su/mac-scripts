@@ -105,6 +105,16 @@ final class ScheduledActionScheduler {
 
         verifyPending()
 
+        // 未完成的任务在目标消失后自动清理：例如磁盘其实已经弹出，
+        // 只是设备节点残留导致上一轮被误标为「未弹出」。
+        for action in store.actions where action.state == .refused {
+            guard isStillPresent(action) else {
+                store.remove(id: action.id)
+                idleFailures.removeValue(forKey: action.id)
+                continue
+            }
+        }
+
         for action in store.actions where action.state == .armed {
             // 目标已消失（应用退出 / 磁盘卸载），任务直接移除。
             guard isAvailable(action) else {
