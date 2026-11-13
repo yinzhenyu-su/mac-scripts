@@ -108,6 +108,7 @@ open "/Applications/智能退出.app"
 - 睡眠唤醒与应用重启都会重置闲置计时，不会在掀盖或重启瞬间弹盘。
 - 无法读取活动计数的磁盘，面板中的闲置选项置灰，只能使用倒计时。
 - 磁盘被拔出时规则自动消失；倒计时超过计划时刻 5 分钟丢弃，闲置规则没有过期窗口。
+- 第一次为某块磁盘创建任务时，应用会先说明原因，再请求「可移除宗卷」访问授权；允许后到点才能无人值守弹出。取消说明或拒绝授权时都不会创建规则。
 - 磁盘弹出属于 Pro 功能，同样受「启用智能退出」总开关控制。
 
 应用包名称为 `智能退出.app`。应用程序图标使用 `NeatQuit/AppIcon.icon`，其中 `Assets/icon-default.png` 为默认外观，`Assets/icon-dark.png` 为深色外观；macOS 26+ 按系统图标外观设置选择。旧系统保留 `NeatQuit/Assets.xcassets/AppIcon.appiconset` 中的默认图标。菜单栏模板图标仍位于 `NeatQuit/Assets.xcassets`。不要运行旧版 `Assets/GenerateIcons.swift`，它会覆盖当前图标。
@@ -127,7 +128,7 @@ open "/Applications/智能退出.app"
 
 ```sh
 mkdir -p build/Tests
-swiftc NeatQuit/RuleStore.swift NeatQuit/ScheduledAction.swift NeatQuit/ScheduledActionStore.swift NeatQuit/ScheduledActionScheduler.swift NeatQuit/ScheduledDisk.swift Tests/main.swift -o build/Tests/neatquit-rules-test
+swiftc NeatQuit/RuleStore.swift NeatQuit/ScheduledAction.swift NeatQuit/ScheduledActionStore.swift NeatQuit/ScheduledActionScheduler.swift NeatQuit/ScheduledDisk.swift NeatQuit/DiskAccess.swift Tests/main.swift -o build/Tests/neatquit-rules-test
 build/Tests/neatquit-rules-test
 ```
 
