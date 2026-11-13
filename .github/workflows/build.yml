@@ -46,7 +46,12 @@ jobs:
       - name: Swift 规则测试
         run: |
           mkdir -p neatquit/build/Tests
-          swiftc neatquit/NeatQuit/RuleStore.swift neatquit/Tests/main.swift \
+          swiftc neatquit/NeatQuit/RuleStore.swift \
+            neatquit/NeatQuit/ScheduledAction.swift \
+            neatquit/NeatQuit/ScheduledActionStore.swift \
+            neatquit/NeatQuit/ScheduledActionScheduler.swift \
+            neatquit/NeatQuit/ScheduledDisk.swift \
+            neatquit/Tests/main.swift \
             -o neatquit/build/Tests/neatquit-rules-test
           ./neatquit/build/Tests/neatquit-rules-test && echo "规则测试通过"
 
