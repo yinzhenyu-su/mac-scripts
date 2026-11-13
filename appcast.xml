@@ -3,6 +3,46 @@
   <channel>
     <title>Neat Quit · 智能退出</title>
     <item>
+      <title>1.6.1</title>
+      <pubDate>Fri, 13 Nov 2026 12:13:51 +0000</pubDate>
+      <sparkle:version>19</sparkle:version>
+      <sparkle:shortVersionString>1.6.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description xml:lang="zh-Hans"><![CDATA[<h2>更新内容</h2>
+<ul>
+<li>创建磁盘弹出任务时先用应用内说明解释，再请求「可移除宗卷」访问授权，避免到点才弹系统对话框</li>
+<li>在应用内说明中取消时不会触发系统授权，也不会创建任务</li>
+<li>拒绝授权时不再创建任务，并提示到「系统设置 → 隐私与安全性 → 文件与文件夹」中开启权限</li>
+<li>「立即弹出」同样先确认授权，再执行弹出</li>
+<li>已授权后再次创建同一磁盘的任务不会重复弹窗</li>
+<li>修复磁盘实际弹出成功但菜单误报「未弹出」的问题：设备节点残留不再被当成失败</li>
+<li>未完成的任务在磁盘拔出或应用退出后自动清理，不再一直留在状态行</li>
+</ul>
+<h2>升级说明</h2>
+<ul>
+<li>直接点「安装更新」即可，现有应用规则、许可证与任务数据不受影响</li>
+<li>升级前已经存在的磁盘弹出任务不会被追溯授权；首次到点仍可能弹出系统授权框，重新创建一次任务即可提前完成授权</li>
+<li>不需要开启「完全磁盘访问权限」，只需要系统提示的「可移除宗卷」访问权限</li>
+</ul>]]></description>
+      <description xml:lang="en"><![CDATA[<h2>What's New</h2>
+<ul>
+<li>Disk eject rules now explain why access is needed, then request Removable Volumes access when you create them, so macOS does not interrupt the scheduled eject with a permission dialog</li>
+<li>Cancelling the in-app explanation neither triggers the system prompt nor creates the rule</li>
+<li>If you deny access, the rule is not created and Neat Quit points you to System Settings → Privacy &amp; Security → Files and Folders</li>
+<li>Eject Now also checks access before ejecting</li>
+<li>Once granted, creating another rule for the same disk does not ask again</li>
+<li>Fixed a false "Didn't Eject" report when the disk was actually ejected: a lingering device node is no longer treated as failure</li>
+<li>Unfinished tasks are removed automatically after the disk is unplugged or the app quits, instead of staying in the status line</li>
+</ul>
+<h2>Upgrade Notes</h2>
+<ul>
+<li>Click "Install Update"; your app rules, license and scheduled tasks are unaffected</li>
+<li>Rules created before this update are not retroactively authorized. The first scheduled eject may still show the system prompt; recreate the rule once to grant access up front</li>
+<li>Full Disk Access is not required; only the Removable Volumes permission shown by macOS</li>
+</ul>]]></description>
+      <enclosure url="https://app.bgm.fun/NeatQuit-v1.6.1.dmg" length="6087940" type="application/octet-stream" sparkle:edSignature="lPMqANEAfQrJ9lOQUdqnfO9RgbWah+HrhSeTxRxbsFSMoDeFjPCCwPMtrVl2fM/vNiqM4EO/kzcayJGZHP0OBw==" />
+    </item>
+    <item>
       <title>1.6.0</title>
       <pubDate>Fri, 13 Nov 2026 11:12:46 +0000</pubDate>
       <sparkle:version>18</sparkle:version>
