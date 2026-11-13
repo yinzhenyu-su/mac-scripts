@@ -37,8 +37,10 @@ git tag --sort=-v:refname | head -3
 - tag `vX.Y.Z` 不存在
 - 工作区没有未提交改动
 - **当前 HEAD** 的 CI `Build` 成功，不要只看最近一次运行；旧提交的绿灯不算
+- 本地规则测试通过：`./scripts/test.sh`
 
 ```sh
+./scripts/test.sh
 gh run list --branch master --limit 3
 gh run view <run-id> --json headSha,conclusion
 ```
@@ -109,6 +111,16 @@ gh run rerun <run-id> --failed
 - tag 已存在：不能覆盖发版，提升版本号重新走流程
 
 ## 5. 校验发布物
+
+优先用脚本一次核对公开来源与 DMG 本体：
+
+```sh
+./scripts/verify-release.py vX.Y.Z
+```
+
+脚本会检查 GitHub Release、appcast、DMG 大小与 SHA-256、版本 / build / Bundle ID / 最低系统、中英文资源、Developer ID 签名、公证与 `spctl`。CI 的 `verify` job 也会在 `Release DMG` 成功后自动跑同一脚本。
+
+下面的手工命令保留作为排查参考。
 
 ### GitHub Release
 
