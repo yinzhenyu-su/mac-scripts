@@ -3,6 +3,76 @@
   <channel>
     <title>Neat Quit · 智能退出</title>
     <item>
+      <title>1.6.0</title>
+      <pubDate>Fri, 13 Nov 2026 11:12:46 +0000</pubDate>
+      <sparkle:version>18</sparkle:version>
+      <sparkle:shortVersionString>1.6.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <description xml:lang="zh-Hans"><![CDATA[<h2>更新内容</h2>
+<ul>
+<li>新增「定时退出应用」：设定倒计时，到点自动退出你指定的那个 App</li>
+<li>目标只能从当前正在运行的 App 中选择，倒计时从设定那一刻开始</li>
+<li>定时退出应用不读取「应用规则」的排除/仅包含列表，到点即退，不会因为该 App 在例外列表里而跳过</li>
+<li>到点只发起正常退出请求，不会强制终止；被未保存文档挡住时条目会显示「未退出」，可手动重试</li>
+<li>新增「磁盘弹出」：菜单中的单一入口，集中管理外接磁盘的立即弹出与自动弹出</li>
+<li>面板提供「立即弹出」、倒计时 / 闲置超时两种触发方式、时长与当前规则</li>
+<li>闲置模式读取整盘读写计数：连续 N 分钟没有读写后弹出，期间任何读写都会重新计时</li>
+<li>磁盘以物理设备为单位：一块 U 盘即使有多个分区，面板里也只出现一块，名字取主卷名</li>
+<li>弹出交给系统 <code>diskutil eject</code>，不强制弹出；磁盘被占用时会显示「未弹出」，可手动重试</li>
+<li>倒计时只在菜单打开时刷新，不新增常驻定时器</li>
+<li>菜单按用途重新分组：状态、全局配置、辅助退出、定时退出应用、磁盘弹出、应用命令</li>
+</ul>
+<h2>行为变化</h2>
+<ul>
+<li>磁盘菜单不再为每块磁盘各占一行，也不再提供一键时长预设；所有磁盘操作集中在「磁盘弹出」面板</li>
+<li>闲置规则失败时会先顺延（视为仍在使用），连续 3 次无读写的失败才标记「未弹出」；倒计时规则仍然失败即标记</li>
+<li>睡眠唤醒或 App 重启会重置闲置计时，不会在掀盖或重启瞬间弹盘</li>
+<li>「启用智能退出」现在是真正的全局总开关：关闭后关窗退出与两类定时任务都不再生效</li>
+<li>关闭总开关时如果还有待执行的任务，会先弹确认，确认后一并取消</li>
+<li>总开关关闭期间无法新建定时任务；「⌘W 智能退出」「应用规则」等配置入口仍可正常使用</li>
+</ul>
+<h2>升级说明</h2>
+<ul>
+<li>直接点「安装更新」即可，现有应用规则与授权状态不受影响</li>
+<li>此前设定过的 App 定时退出会在首次启动时自动迁移，显示名称与剩余时间不变</li>
+<li>升级后没有待执行的任务，因此关闭总开关的实际行为与旧版一致</li>
+<li>两项定时功能都属于 Pro，试用期内可用；试用到期不会删除已设定的规则，也不会阻止其到期执行</li>
+<li>如果电脑在倒计时期间睡眠，醒来时已超过计划时刻 5 分钟以上，该次任务会被放弃（不会补跑）；闲置规则没有过期窗口，但会在唤醒时重新计时</li>
+</ul>]]></description>
+      <description xml:lang="en"><![CDATA[<h2>What's New</h2>
+<ul>
+<li>Added Quit Apps Later: set a countdown and Neat Quit quits the app you picked when it ends</li>
+<li>Targets can only be apps that are currently running, and the countdown starts the moment you set it</li>
+<li>Quit Apps Later ignores the Application Rules exclusion/only lists and acts on schedule, even if the app is in the exclusion list</li>
+<li>Only a normal quit request is sent, never a forced termination; if unsaved documents block it, the row shows "Didn't Quit" and can be retried manually</li>
+<li>Added Disk Eject: a single menu entry for immediate and scheduled ejection of external disks</li>
+<li>The panel offers Eject Now, two trigger modes (countdown / idle timeout), the duration, and the current rule</li>
+<li>Idle mode watches whole-disk activity counters: it ejects after N minutes without reads or writes, and any activity restarts the timer</li>
+<li>Disks are grouped by physical device: a USB stick with several partitions appears once, named after its main volume</li>
+<li>Ejection goes through the system <code>diskutil eject</code> and is never forced; a disk in use shows "Didn't Eject" and can be retried</li>
+<li>The countdown refreshes only while the menu is open; no new always-on timers</li>
+<li>The menu is regrouped by purpose: Status, Global, Assisted Quit, Quit Apps Later, Disk Eject, App Commands</li>
+</ul>
+<h2>Behavior Changes</h2>
+<ul>
+<li>The disk section no longer gives each disk its own row or one-click duration presets; all disk actions live in the Disk Eject panel</li>
+<li>A failed idle rule is deferred first (treated as still in use); only after 3 consecutive failures with no activity does it show "Didn't Eject". Countdown rules still fail immediately</li>
+<li>Sleep/wake and app relaunch reset the idle timer, so a disk is not ejected right after opening the lid or restarting</li>
+<li>"Enable Neat Quit" is now a true global switch: turning it off disables window-close quitting and both kinds of scheduled tasks</li>
+<li>If tasks are pending when you turn it off, a confirmation appears first and cancels them after you confirm</li>
+<li>New scheduled tasks cannot be created while the switch is off; configuration entries such as "⌘W Neat Quit" and "App Rules" remain available</li>
+</ul>
+<h2>Upgrade Notes</h2>
+<ul>
+<li>Click "Install Update"; your existing app rules and license are unaffected</li>
+<li>App quit timers you set earlier are migrated automatically on first launch, keeping their names and remaining time</li>
+<li>No scheduled tasks exist right after upgrading, so turning the switch off behaves the same as before</li>
+<li>Both scheduling features are Pro and available during the trial. Trial expiry does not delete existing rules or block them from running</li>
+<li>If the Mac sleeps through a countdown deadline and wakes more than 5 minutes later, that task is dropped rather than run late. Idle rules have no expiry window, but their timer restarts on wake</li>
+</ul>]]></description>
+      <enclosure url="https://app.bgm.fun/NeatQuit-v1.6.0.dmg" length="6085908" type="application/octet-stream" sparkle:edSignature="Gyz4fgmLTD/pDkMe9ilX7L0pJLcJe5b57zP6kH6mUkg5zS+qWsYQBxHMYrPfdNG6PuD/5rVdpYJWJlW1uoAADQ==" />
+    </item>
+    <item>
       <title>1.5.0</title>
       <pubDate>Wed, 11 Nov 2026 03:30:21 +0000</pubDate>
       <sparkle:version>17</sparkle:version>
