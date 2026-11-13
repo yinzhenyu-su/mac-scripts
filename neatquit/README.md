@@ -52,20 +52,20 @@ open "build/Build/Products/Release/智能退出.app"
 
 ### 调试运行
 
-`debug-run.sh` 会构建 Debug 版、退出正在运行的实例（Debug 版与正式版共用 Bundle ID 和偏好设置），再启动刚构建的 App：
+`debug-run.sh` 会构建 Debug 版、用 Developer ID 签名、退出正在运行的实例（Debug 版与正式版共用 Bundle ID 和偏好设置）、替换 `/Applications/智能退出.app`，再从“应用程序”启动：
 
 ```sh
-./debug-run.sh          # 构建并启动
-./debug-run.sh --pro    # 临时写入 license.legacyPro=1，跳过 Pro 门禁
-./debug-run.sh --logs   # 启动后实时输出 os_log（Ctrl-C 停止）
-./debug-run.sh --sign   # 用 Developer ID 签名，继承正式版的辅助权限授权
+./debug-run.sh           # 签名构建、安装到 /Applications 并启动
+./debug-run.sh --pro     # 临时写入 license.legacyPro=1，跳过 Pro 门禁
+./debug-run.sh --logs    # 启动后实时输出 os_log（Ctrl-C 停止）
+./debug-run.sh --no-sign # 改用 ad-hoc 签名（会丢失辅助权限授权）
 ```
 
-默认 Debug 版是 ad-hoc 签名，每次重新构建都需要重新授予辅助功能 / 输入监控权限。加 `--sign` 后使用与正式版相同的 Developer ID Application 证书和 Team ID，签名要求（designated requirement）与正式版一致，TCC 通常会把测试版视为同一个 App，从而继承已有授权。
+默认使用与正式版相同的 Developer ID Application 证书和 Team ID，签名要求（designated requirement）与正式版一致，TCC 通常会把测试版视为同一个 App，从而继承已有的辅助功能 / 输入监控授权。因为每次都覆盖 `/Applications` 中的版本，调试期间“应用程序”里运行的就是刚构建的 Debug 版，需要时用正式包重新安装即可恢复。
 
 调试完成后可执行 `defaults delete fun.bgm.neatquit license.legacyPro` 恢复授权状态。
 
-如需安装到“应用程序”，先从菜单栏退出正在运行的旧版“智能退出”，再执行：
+如需安装正式版，直接构建 Release 并复制到“应用程序”：
 
 ```sh
 ditto "build/Build/Products/Release/智能退出.app" "/Applications/智能退出.app"
