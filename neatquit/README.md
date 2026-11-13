@@ -126,11 +126,13 @@ open "/Applications/智能退出.app"
 
 ## 规则测试
 
+在仓库根目录运行：
+
 ```sh
-mkdir -p build/Tests
-swiftc NeatQuit/RuleStore.swift NeatQuit/ScheduledAction.swift NeatQuit/ScheduledActionStore.swift NeatQuit/ScheduledActionScheduler.swift NeatQuit/ScheduledDisk.swift NeatQuit/DiskAccess.swift Tests/main.swift -o build/Tests/neatquit-rules-test
-build/Tests/neatquit-rules-test
+./scripts/test.sh
 ```
+
+脚本会编译全部调度源文件并运行 `neatquit/build/Tests/neatquit-rules-test`。从 `neatquit/` 目录运行时用 `../scripts/test.sh`。
 
 ## 许可证与付费（1.4.0 起）
 

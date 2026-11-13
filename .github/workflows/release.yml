@@ -290,3 +290,13 @@ jobs:
       - name: 清理钥匙串
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+
+  verify:
+    needs: release
+    runs-on: macos-26
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 校验发布物
+        run: ./scripts/verify-release.py "${{ github.ref_name }}"

@@ -44,17 +44,7 @@ jobs:
           echo "rpath 校验通过"
 
       - name: Swift 规则测试
-        run: |
-          mkdir -p neatquit/build/Tests
-          swiftc neatquit/NeatQuit/RuleStore.swift \
-            neatquit/NeatQuit/ScheduledAction.swift \
-            neatquit/NeatQuit/ScheduledActionStore.swift \
-            neatquit/NeatQuit/ScheduledActionScheduler.swift \
-            neatquit/NeatQuit/ScheduledDisk.swift \
-            neatquit/NeatQuit/DiskAccess.swift \
-            neatquit/Tests/main.swift \
-            -o neatquit/build/Tests/neatquit-rules-test
-          ./neatquit/build/Tests/neatquit-rules-test && echo "规则测试通过"
+        run: ./scripts/test.sh
 
       - name: appcast 单测
         run: python3 scripts/test_make_appcast.py
