@@ -10,7 +10,7 @@
 "menu.grantInputMonitoring" = "授予输入监控权限…";
 "menu.login" = "登录时启动";
 "app.current" = "当前 App";
-"menu.addCurrent" = "将 %@ 加入例外";
+"menu.addCurrent" = "将「%@」加入例外";
 "menu.rules" = "应用规则…";
 "menu.grantAccessibility" = "授予辅助功能权限…";
 "menu.about" = "关于智能退出";
@@ -89,9 +89,9 @@
 "menu.license.manage" = "许可证…";
 "menu.keyboard.pro" = "⌘W 智能退出（Pro）";
 "menu.rules.pro" = "应用规则…（Pro）";
-"menu.addCurrent.pro" = "将 %@ 加入例外（Pro）";
-"menu.addCurrent.only" = "将 %@ 设为自动退出";
-"menu.addCurrent.only.pro" = "将 %@ 设为自动退出（Pro）";
+"menu.addCurrent.pro" = "将「%@」加入例外（Pro）";
+"menu.addCurrent.only" = "将「%@」设为自动退出";
+"menu.addCurrent.only.pro" = "将「%@」设为自动退出（Pro）";
 
 "menu.edit" = "编辑";
 "menu.undo" = "撤销";
@@ -109,3 +109,67 @@
 "onboarding.later" = "稍后处理";
 "onboarding.adjust" = "调整规则…";
 "onboarding.confirm" = "我知道了";
+
+"menu.schedule" = "定时退出应用…";
+"menu.schedule.entry" = "定时退出应用  %@";
+"menu.schedule.pro" = "定时退出应用…（Pro）";
+"menu.schedule.fast" = "将「%@」定时退出";
+"menu.schedule.add" = "添加定时退出…";
+"menu.schedule.cancelAll" = "全部取消";
+"menu.schedule.row" = "%@   %@";
+"menu.schedule.refused" = "%@   未退出";
+"menu.schedule.firing" = "%@   正在退出…";
+"menu.schedule.ended" = "%@   已结束";
+"menu.schedule.retryHint" = "点击重试";
+"menu.schedule.cancelHint" = "点击取消";
+"schedule.panel.title" = "添加定时退出";
+"schedule.panel.app" = "应用";
+"schedule.panel.duration" = "倒计时";
+"schedule.panel.minutes" = "分钟";
+"schedule.panel.custom" = "自定义";
+"schedule.panel.note" = "仅作用于你指定的 App，与「应用规则」的排除/仅包含列表无关";
+"schedule.panel.start" = "开始倒计时";
+"schedule.panel.invalid" = "请输入 1 到 1440 之间的分钟数";
+"schedule.panel.noApps" = "当前没有可定时退出的 App";
+"schedule.disabled.title" = "定时退出当前不可用";
+"schedule.disabled.message" = "「启用智能退出」已关闭，定时退出不会执行。";
+"schedule.disabled.action" = "启用并继续";
+"schedule.confirm.title" = "关闭智能退出？";
+"schedule.confirm.message" = "将同时取消 %d 个定时任务：";
+"schedule.confirm.more" = "等 %d 个";
+"schedule.confirm.action" = "关闭并取消计时";
+
+"schedule.preset.5" = "5 分钟";
+"schedule.preset.15" = "15 分钟";
+"schedule.preset.30" = "30 分钟";
+"schedule.preset.60" = "1 小时";
+"schedule.preset.120" = "2 小时";
+"schedule.preset.custom" = "自定义…";
+"schedule.preset.minutes" = "%d 分钟";
+
+"menu.eject" = "定时弹出硬盘…";
+"menu.eject.entry" = "定时弹出硬盘  %@";
+"menu.eject.pro" = "定时弹出硬盘…（Pro）";
+"menu.eject.fast" = "将「%@」定时弹出";
+"menu.eject.add" = "添加定时弹出…";
+"menu.eject.cancel" = "取消定时弹出";
+"menu.eject.row" = "%@   %@";
+"menu.eject.refused" = "%@   未弹出";
+"menu.eject.firing" = "%@   正在弹出…";
+"menu.eject.ended" = "%@   已结束";
+"eject.panel.title" = "添加定时弹出";
+"eject.panel.disk" = "磁盘";
+"eject.panel.note" = "仅作用于你选择的磁盘；弹出前会先卸载其上所有卷";
+"eject.panel.noDisks" = "当前没有可弹出的磁盘";
+"disk.unnamed" = "未命名磁盘";
+"menu.eject.fast.remaining" = "将「%@」定时弹出  %@";
+
+"menu.eject.now" = "立即弹出";
+"eject.failed.title" = "无法弹出「%@」";
+"eject.failed.message" = "磁盘可能正被其他 App 使用。请关闭相关文件后重试。";
+
+"status.incomplete.title" = "%d 个任务未完成：%@";
+"status.refused.app" = "%@ 未退出";
+"status.refused.disk" = "%@ 未弹出";
+"status.refused.more" = "等 %d 个";
+"status.refused.joiner" = "、";

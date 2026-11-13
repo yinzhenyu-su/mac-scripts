@@ -10,7 +10,7 @@
 "menu.grantInputMonitoring" = "Grant Input Monitoring Permission…";
 "menu.login" = "Launch at Login";
 "app.current" = "Current App";
-"menu.addCurrent" = "Add %@ to Exceptions";
+"menu.addCurrent" = "Add \"%@\" to Exceptions";
 "menu.rules" = "App Rules…";
 "menu.grantAccessibility" = "Grant Accessibility Permission…";
 "menu.about" = "About Neat Quit";
@@ -89,9 +89,9 @@
 "menu.license.manage" = "License…";
 "menu.keyboard.pro" = "⌘W Neat Quit (Pro)";
 "menu.rules.pro" = "App Rules… (Pro)";
-"menu.addCurrent.pro" = "Add %@ to Exceptions (Pro)";
-"menu.addCurrent.only" = "Set %@ to Auto Quit";
-"menu.addCurrent.only.pro" = "Set %@ to Auto Quit (Pro)";
+"menu.addCurrent.pro" = "Add \"%@\" to Exceptions (Pro)";
+"menu.addCurrent.only" = "Set \"%@\" to Auto Quit";
+"menu.addCurrent.only.pro" = "Set \"%@\" to Auto Quit (Pro)";
 
 "menu.edit" = "Edit";
 "menu.undo" = "Undo";
@@ -109,3 +109,67 @@
 "onboarding.later" = "Later";
 "onboarding.adjust" = "Adjust Rules…";
 "onboarding.confirm" = "Got It";
+
+"menu.schedule" = "Quit Apps Later…";
+"menu.schedule.entry" = "Quit Apps Later  %@";
+"menu.schedule.pro" = "Quit Apps Later… (Pro)";
+"menu.schedule.fast" = "Quit \"%@\" Later";
+"menu.schedule.add" = "Add Quit Timer…";
+"menu.schedule.cancelAll" = "Cancel All";
+"menu.schedule.row" = "%@   %@";
+"menu.schedule.refused" = "%@   Didn't Quit";
+"menu.schedule.firing" = "%@   Quitting…";
+"menu.schedule.ended" = "%@   Finished";
+"menu.schedule.retryHint" = "Click to retry";
+"menu.schedule.cancelHint" = "Click to cancel";
+"schedule.panel.title" = "Add Quit Timer";
+"schedule.panel.app" = "App";
+"schedule.panel.duration" = "Countdown";
+"schedule.panel.minutes" = "min";
+"schedule.panel.custom" = "Custom";
+"schedule.panel.note" = "Applies only to the app you pick here, independent of the Application Rules lists.";
+"schedule.panel.start" = "Start Countdown";
+"schedule.panel.invalid" = "Enter a number of minutes between 1 and 1440";
+"schedule.panel.noApps" = "No running app can be scheduled";
+"schedule.disabled.title" = "Quit Later Unavailable";
+"schedule.disabled.message" = "\"Enable Neat Quit\" is off, so scheduled quits will not run.";
+"schedule.disabled.action" = "Enable and Continue";
+"schedule.confirm.title" = "Turn Off Neat Quit?";
+"schedule.confirm.message" = "This will also cancel %d scheduled item(s):";
+"schedule.confirm.more" = "and %d more";
+"schedule.confirm.action" = "Turn Off and Cancel Timers";
+
+"schedule.preset.5" = "5 Minutes";
+"schedule.preset.15" = "15 Minutes";
+"schedule.preset.30" = "30 Minutes";
+"schedule.preset.60" = "1 Hour";
+"schedule.preset.120" = "2 Hours";
+"schedule.preset.custom" = "Custom…";
+"schedule.preset.minutes" = "%d Minutes";
+
+"menu.eject" = "Eject Disks Later…";
+"menu.eject.entry" = "Eject Disks Later  %@";
+"menu.eject.pro" = "Eject Disks Later… (Pro)";
+"menu.eject.fast" = "Eject \"%@\" Later";
+"menu.eject.add" = "Add Eject Timer…";
+"menu.eject.cancel" = "Cancel Eject Timer";
+"menu.eject.row" = "%@   %@";
+"menu.eject.refused" = "%@   Didn't Eject";
+"menu.eject.firing" = "%@   Ejecting…";
+"menu.eject.ended" = "%@   Finished";
+"eject.panel.title" = "Add Eject Timer";
+"eject.panel.disk" = "Disk";
+"eject.panel.note" = "Applies only to the disk you pick; all of its volumes are unmounted before ejecting.";
+"eject.panel.noDisks" = "No ejectable disk";
+"disk.unnamed" = "Unnamed Disk";
+"menu.eject.fast.remaining" = "Eject \"%@\" Later  %@";
+
+"menu.eject.now" = "Eject Now";
+"eject.failed.title" = "Couldn't Eject \"%@\"";
+"eject.failed.message" = "The disk may be in use by another app. Close the related files and try again.";
+
+"status.incomplete.title" = "%d incomplete task(s): %@";
+"status.refused.app" = "%@ didn't quit";
+"status.refused.disk" = "%@ didn't eject";
+"status.refused.more" = "and %d more";
+"status.refused.joiner" = ", ";

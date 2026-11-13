@@ -47,6 +47,150 @@ enum L10n {
     static let settingsClearSearch = text("settings.search.clear")
     static let settingsNoResults = text("settings.search.noResults")
 
+    // 定时退出
+    static let scheduleEntryBase = text("menu.schedule")
+    static let scheduleEntryFormat = text("menu.schedule.entry")
+    static let scheduleEntryPro = text("menu.schedule.pro")
+    static let scheduleFastFormat = text("menu.schedule.fast")
+    static let scheduleAdd = text("menu.schedule.add")
+    static let scheduleCancelAll = text("menu.schedule.cancelAll")
+    static let scheduleRowFormat = text("menu.schedule.row")
+    static let scheduleRefusedFormat = text("menu.schedule.refused")
+    static let scheduleFiringFormat = text("menu.schedule.firing")
+    static let scheduleEndedFormat = text("menu.schedule.ended")
+    static let scheduleRetryHint = text("menu.schedule.retryHint")
+    static let scheduleCancelHint = text("menu.schedule.cancelHint")
+    static let schedulePanelTitle = text("schedule.panel.title")
+    static let schedulePanelApp = text("schedule.panel.app")
+    static let schedulePanelDuration = text("schedule.panel.duration")
+    static let schedulePanelMinutes = text("schedule.panel.minutes")
+    static let schedulePanelCustom = text("schedule.panel.custom")
+    static let schedulePanelNote = text("schedule.panel.note")
+    static let schedulePanelStart = text("schedule.panel.start")
+    static let schedulePanelInvalid = text("schedule.panel.invalid")
+    static let schedulePanelNoApps = text("schedule.panel.noApps")
+    static let scheduleDisabledTitle = text("schedule.disabled.title")
+    static let scheduleDisabledMessage = text("schedule.disabled.message")
+    static let scheduleDisabledAction = text("schedule.disabled.action")
+    static let scheduleConfirmTitle = text("schedule.confirm.title")
+    static let scheduleConfirmMessageFormat = text("schedule.confirm.message")
+    static let scheduleConfirmMoreFormat = text("schedule.confirm.more")
+    static let scheduleConfirmAction = text("schedule.confirm.action")
+
+    static func scheduleTitle(pro: Bool, suffix: String?) -> String {
+        guard pro else { return scheduleEntryPro }
+        guard let suffix else { return scheduleEntryBase }
+        return String(format: scheduleEntryFormat, suffix)
+    }
+
+    static func scheduleFastTitle(_ name: String) -> String {
+        String(format: scheduleFastFormat, name)
+    }
+
+    static func schedulePresetTitle(_ minutes: Int) -> String {
+        switch minutes {
+        case 5: return text("schedule.preset.5")
+        case 15: return text("schedule.preset.15")
+        case 30: return text("schedule.preset.30")
+        case 60: return text("schedule.preset.60")
+        case 120: return text("schedule.preset.120")
+        default: return String(format: text("schedule.preset.minutes"), minutes)
+        }
+    }
+
+    static let scheduleCustom = text("schedule.preset.custom")
+
+    static func scheduleRowTitle(name: String, remaining: String) -> String {
+        String(format: scheduleRowFormat, name, remaining)
+    }
+
+    static func scheduleRefusedTitle(_ name: String) -> String {
+        String(format: scheduleRefusedFormat, name)
+    }
+
+    static func scheduleFiringTitle(_ name: String) -> String {
+        String(format: scheduleFiringFormat, name)
+    }
+
+    static func scheduleEndedTitle(_ name: String) -> String {
+        String(format: scheduleEndedFormat, name)
+    }
+
+    static func scheduleConfirmMessage(_ count: Int) -> String {
+        String(format: scheduleConfirmMessageFormat, count)
+    }
+
+    static func scheduleConfirmMore(_ count: Int) -> String {
+        String(format: scheduleConfirmMoreFormat, count)
+    }
+
+    // 定时弹出硬盘
+    static let ejectEntryBase = text("menu.eject")
+    static let ejectEntryFormat = text("menu.eject.entry")
+    static let ejectEntryPro = text("menu.eject.pro")
+    static let ejectFastFormat = text("menu.eject.fast")
+    static let ejectFastRemainingFormat = text("menu.eject.fast.remaining")
+    static let ejectAdd = text("menu.eject.add")
+    static let ejectCancel = text("menu.eject.cancel")
+    static let ejectRowFormat = text("menu.eject.row")
+    static let ejectRefusedFormat = text("menu.eject.refused")
+    static let ejectFiringFormat = text("menu.eject.firing")
+    static let ejectEndedFormat = text("menu.eject.ended")
+    static let ejectPanelTitle = text("eject.panel.title")
+    static let ejectPanelDisk = text("eject.panel.disk")
+    static let ejectPanelNote = text("eject.panel.note")
+    static let ejectPanelNoDisks = text("eject.panel.noDisks")
+    static let ejectNow = text("menu.eject.now")
+    static let statusRefusedJoiner = text("status.refused.joiner")
+    static let ejectFailedMessage = text("eject.failed.message")
+
+    static func ejectTitle(pro: Bool, suffix: String?) -> String {
+        guard pro else { return ejectEntryPro }
+        guard let suffix else { return ejectEntryBase }
+        return String(format: ejectEntryFormat, suffix)
+    }
+
+    static func ejectFastTitle(_ name: String, remaining: String? = nil) -> String {
+        guard let remaining else { return String(format: ejectFastFormat, name) }
+        return String(format: ejectFastRemainingFormat, name, remaining)
+    }
+
+    static func diskRowTitle(name: String, remaining: String) -> String {
+        String(format: ejectRowFormat, name, remaining)
+    }
+
+    static func diskRefusedTitle(_ name: String) -> String {
+        String(format: ejectRefusedFormat, name)
+    }
+
+    static func diskFiringTitle(_ name: String) -> String {
+        String(format: ejectFiringFormat, name)
+    }
+
+    static func diskEndedTitle(_ name: String) -> String {
+        String(format: ejectEndedFormat, name)
+    }
+
+    static func statusIncomplete(count: Int, detail: String) -> String {
+        String(format: text("status.incomplete.title"), count, detail)
+    }
+
+    static func statusRefusedApp(_ name: String) -> String {
+        String(format: text("status.refused.app"), name)
+    }
+
+    static func statusRefusedDisk(_ name: String) -> String {
+        String(format: text("status.refused.disk"), name)
+    }
+
+    static func statusRefusedMore(_ count: Int) -> String {
+        String(format: text("status.refused.more"), count)
+    }
+
+    static func ejectFailedTitle(_ name: String) -> String {
+        String(format: text("eject.failed.title"), name)
+    }
+
     static let menuEdit = text("menu.edit")
     static let menuUndo = text("menu.undo")
     static let menuRedo = text("menu.redo")

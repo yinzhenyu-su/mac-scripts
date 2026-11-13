@@ -205,7 +205,7 @@ final class CloseMonitor {
             self.logger.info("close check: source=keyboard pid=\(application.processIdentifier, privacy: .public) attempt=\(attempt, privacy: .public) ax=\(windows.count, privacy: .public) onscreen=\(visibleWindowCount ?? -1, privacy: .public) empty=\(noRemainingWindows, privacy: .public)")
 
             if noRemainingWindows && sawEmptyWindows {
-                let requested = application.terminate()
+                let requested = AppTerminator.quit(application)
                 self.logger.info("quit requested: source=keyboard pid=\(application.processIdentifier, privacy: .public) accepted=\(requested, privacy: .public)")
             } else if attempt < 7, !(sawEmptyWindows && !noRemainingWindows) {
                 self.scheduleKeyboardCheck(
@@ -248,7 +248,7 @@ final class CloseMonitor {
             )
             self.logger.info("close check: source=fullScreen pid=\(application.processIdentifier, privacy: .public) windowID=\(closingWindowID, privacy: .public) attempt=\(attempt, privacy: .public) ax=\(standardWindowCount ?? -1, privacy: .public) onscreen=\(visibleWindowCount ?? -1, privacy: .public) otherSpaces=\(otherScreenSizedWindowCount ?? -1, privacy: .public) empty=\(noWindows, privacy: .public)")
             if CloseDecision.shouldQuitAfterConfirmedFullScreenClose(previousSampleWasEmpty: sawNoWindows, currentSampleIsEmpty: noWindows) {
-                let requested = application.terminate()
+                let requested = AppTerminator.quit(application)
                 self.logger.info("quit requested: source=fullScreen pid=\(application.processIdentifier, privacy: .public) accepted=\(requested, privacy: .public)")
             } else if attempt < 8 {
                 self.scheduleFullScreenCheck(
@@ -373,7 +373,7 @@ final class CloseMonitor {
     private func requestQuit(_ target: Target) {
         DispatchQueue.main.async { [self] in
             guard !target.application.isTerminated else { return }
-            let requested = target.application.terminate()
+            let requested = AppTerminator.quit(target.application)
             logger.info("quit requested: source=redButton kind=standard pid=\(target.application.processIdentifier, privacy: .public) accepted=\(requested, privacy: .public)")
             if !requested {
                 AXUIElementPerformAction(target.closeButton, kAXPressAction as CFString)

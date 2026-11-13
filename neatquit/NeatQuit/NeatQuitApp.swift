@@ -37,6 +37,54 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
     private var inputMonitoringWasGranted = CGPreflightListenEventAccess()
     private var authorizationTimer: Timer?
     private var restartInProgress = false
+    private let scheduledActions = ScheduledActionStore()
+    private lazy var scheduler = ScheduledActionScheduler(
+        store: scheduledActions,
+        isAvailable: { [weak self] action in self?.isTargetAvailable(action) ?? false },
+        isStillPresent: { [weak self] action in self?.isTargetStillPresent(action) ?? false },
+        perform: { [weak self] action, completion in self?.perform(action, completion: completion) },
+        beginPowerAssertion: { PowerAssertion.begin(reason: "定时任务 \($0)") },
+        endPowerAssertion: { PowerAssertion.end($0) }
+    )
+    private lazy var baseMenuBarIcon: NSImage? = {
+        let image = NSImage(named: "MenuBarIcon")
+        image?.isTemplate = true
+        image?.size = NSSize(width: 24, height: 24)
+        return image
+    }()
+    private lazy var badgedMenuBarIcon: NSImage? = {
+        guard let base = baseMenuBarIcon else { return nil }
+        let size = NSSize(width: 24, height: 24)
+        let image = NSImage(size: size)
+        image.isTemplate = true
+        image.lockFocus()
+        base.draw(in: NSRect(origin: .zero, size: size))
+        NSColor.black.setFill()
+        NSBezierPath(ovalIn: NSRect(x: 16.5, y: 1.5, width: 6, height: 6)).fill()
+        image.unlockFocus()
+        return image
+    }()
+    private var scheduleWindow: NSWindow?
+    private var ejectWindow: NSWindow?
+    private var menuCountdownTimer: Timer?
+    private var menuIsOpen = false
+    private var scheduleEntryItem: NSMenuItem?
+    private var scheduleRows: [ScheduleRow] = []
+    private var ejectEntryItem: NSMenuItem?
+    private var diskRows: [DiskRow] = []
+    private var availableDisks: [ScheduledDisk] = []
+
+    private struct ScheduleRow {
+        let id: UUID
+        let name: String
+        let item: NSMenuItem
+    }
+
+    private struct DiskRow {
+        let disk: ScheduledDisk
+        let item: NSMenuItem
+        let hadAction: Bool
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -49,14 +97,18 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             self.sizeSettingsWindow()
         }
         license.onChange = { [weak self] _ in self?.applyLicenseState() }
+        scheduledActions.onChange = { [weak self] _ in
+            guard let self else { return }
+            self.updateStatusItemBadge()
+            if self.menuIsOpen {
+                self.updateScheduleTitles()
+            } else {
+                self.refreshMenu()
+            }
+        }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let image = NSImage(named: "MenuBarIcon") {
-            image.isTemplate = true
-            image.size = NSSize(width: 24, height: 24)
-            statusItem.button?.image = image
-        }
-        statusItem.button?.toolTip = L10n.appName
+        updateStatusItemBadge()
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
@@ -65,9 +117,10 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
         authorizationTimer = Timer.scheduledTimer(
             // 2 秒足够及时发现授权变化，同时减少空闲唤醒。
+            // 定时退出的到期判定也搭这趟车，不额外引入常驻定时器。
             timeInterval: 2,
             target: self,
-            selector: #selector(checkAccessibilityAuthorization),
+            selector: #selector(periodicTick),
             userInfo: nil,
             repeats: true
         )
@@ -97,6 +150,11 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
 
         mainMenu.addItem(editRoot)
         NSApp.mainMenu = mainMenu
+    }
+
+    @objc private func periodicTick() {
+        if enabled { scheduler.tick() }
+        checkAccessibilityAuthorization()
     }
 
     @objc private func checkAccessibilityAuthorization() {
@@ -152,49 +210,85 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         lastActiveApplication = frontmost == NSRunningApplication.current ? nil : frontmost
         if enabled && !monitor.isRunning { _ = monitor.start() }
         if enabled && keyboardEnabled { monitor.retryKeyboard() }
+        menuIsOpen = true
         refreshMenu()
+        startMenuCountdown()
     }
+
+    func menuDidClose(_ menu: NSMenu) {
+        menuIsOpen = false
+        stopMenuCountdown()
+    }
+
+    // MARK: - 菜单组装
+    // 六段：状态 / 全局配置 / 辅助退出 / 定时退出应用 / 定时弹出硬盘 / 应用命令。
 
     private func refreshMenu() {
         guard let menu = statusItem?.menu else { return }
         menu.removeAllItems()
+        menu.autoenablesItems = false
+        scheduleEntryItem = nil
+        scheduleRows.removeAll(keepingCapacity: true)
+        ejectEntryItem = nil
+        diskRows.removeAll(keepingCapacity: true)
 
+        if addStatusSection(to: menu) {
+            menu.addItem(.separator())
+        }
+        addGlobalSection(to: menu)
+        menu.addItem(.separator())
+        addAssistiveSection(to: menu)
+        menu.addItem(.separator())
+        addAppScheduleSection(to: menu)
+        menu.addItem(.separator())
+        if addDiskScheduleSection(to: menu) {
+            menu.addItem(.separator())
+        }
+        addApplicationSection(to: menu)
+    }
+
+    /// 状态段只在有信息需要提示时出现；一切正常时不再用一行灰字复述开关状态。
+    @discardableResult
+    private func addStatusSection(to menu: NSMenu) -> Bool {
         let accessibilityGranted = AXIsProcessTrusted()
+        var hasContent = false
+
+        let refused = scheduledActions.actions.filter { $0.state == .refused }
+        if !refused.isEmpty {
+            let item = NSMenuItem(
+                title: L10n.statusIncomplete(count: refused.count, detail: refusedDetail(refused)),
+                action: nil,
+                keyEquivalent: ""
+            )
+            item.isEnabled = false
+            menu.addItem(item)
+            hasContent = true
+        }
+
         let status = L10n.status(
             for: accessibilityGranted,
             enabled: enabled,
             monitorRunning: monitor.isRunning)
-        let statusItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
-
-        let licenseStatus = NSMenuItem(title: licenseSummaryTitle, action: nil, keyEquivalent: "")
-        licenseStatus.isEnabled = false
-        menu.addItem(licenseStatus)
-
-        if !license.hasPro {
-            let unlock = NSMenuItem(title: L10n.licenseMenuUnlock, action: #selector(openLicenseWindow), keyEquivalent: "")
-            unlock.target = self
-            menu.addItem(unlock)
+        if status != L10n.enabled {
+            let statusItem = NSMenuItem(title: status, action: nil, keyEquivalent: "")
+            statusItem.isEnabled = false
+            menu.addItem(statusItem)
+            hasContent = true
         }
 
-        menu.addItem(.separator())
+        if case .trial = license.tier {
+            let licenseStatus = NSMenuItem(title: licenseSummaryTitle, action: nil, keyEquivalent: "")
+            licenseStatus.isEnabled = false
+            menu.addItem(licenseStatus)
+            hasContent = true
+        }
 
-        let toggle = NSMenuItem(title: L10n.enable, action: #selector(toggleEnabled), keyEquivalent: "")
-        toggle.target = self
-        toggle.state = enabled ? .on : .off
         if !accessibilityGranted {
-            toggle.attributedTitle = NSAttributedString(string: toggle.title, attributes: [.foregroundColor: NSColor.disabledControlTextColor])
+            let permission = NSMenuItem(title: L10n.grantAccessibility, action: #selector(requestAccessibility), keyEquivalent: "")
+            permission.target = self
+            menu.addItem(permission)
+            hasContent = true
         }
-        menu.addItem(toggle)
-
-        let keyboardToggle = NSMenuItem(title: L10n.keyboardTitle(pro: license.isEntitled), action: #selector(toggleKeyboard), keyEquivalent: "")
-        keyboardToggle.target = self
-        keyboardToggle.state = license.isEntitled && keyboardEnabled ? .on : .off
-        if !accessibilityGranted {
-            keyboardToggle.attributedTitle = NSAttributedString(string: keyboardToggle.title, attributes: [.foregroundColor: NSColor.disabledControlTextColor])
-        }
-        menu.addItem(keyboardToggle)
 
         if enabled && keyboardEnabled && accessibilityGranted && !monitor.isKeyboardRunning {
             let keyboardStatus = NSMenuItem(
@@ -204,6 +298,7 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             )
             keyboardStatus.isEnabled = false
             menu.addItem(keyboardStatus)
+            hasContent = true
             if !CGPreflightListenEventAccess() {
                 let permission = NSMenuItem(title: L10n.grantInputMonitoring, action: #selector(requestInputMonitoring), keyEquivalent: "")
                 permission.target = self
@@ -211,10 +306,62 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             }
         }
 
+        return hasContent
+    }
+
+    /// 未完成任务的聚合描述：最多列两个目标，其余折叠。
+    private func refusedDetail(_ refused: [ScheduledAction]) -> String {
+        let ordered = ScheduleDecision.ordered(refused)
+        var parts: [String] = ordered.prefix(2).map { action in
+            action.target.kind == .disk
+                ? L10n.statusRefusedDisk(action.displayName)
+                : L10n.statusRefusedApp(action.displayName)
+        }
+        if ordered.count > 2 {
+            parts.append(L10n.statusRefusedMore(ordered.count - 2))
+        }
+        return parts.joined(separator: L10n.statusRefusedJoiner)
+    }
+
+    /// 有未完成任务时给菜单栏图标加一个小圆点，回来后一眼能看到。
+    private func updateStatusItemBadge() {
+        guard let button = statusItem?.button else { return }
+        let refused = scheduledActions.actions.filter { $0.state == .refused }
+        if refused.isEmpty {
+            button.image = baseMenuBarIcon
+            button.toolTip = L10n.appName
+        } else {
+            button.image = badgedMenuBarIcon
+            button.toolTip = L10n.statusIncomplete(count: refused.count, detail: refusedDetail(refused))
+        }
+    }
+
+    private func addGlobalSection(to menu: NSMenu) {
+        let accessibilityGranted = AXIsProcessTrusted()
+        let toggle = NSMenuItem(title: L10n.enable, action: #selector(toggleEnabled), keyEquivalent: "")
+        toggle.target = self
+        toggle.state = enabled ? .on : .off
+        if !accessibilityGranted {
+            toggle.attributedTitle = NSAttributedString(string: toggle.title, attributes: [.foregroundColor: NSColor.disabledControlTextColor])
+        }
+        menu.addItem(toggle)
+
         let login = NSMenuItem(title: L10n.login, action: #selector(toggleLoginItem), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
+    }
+
+    private func addAssistiveSection(to menu: NSMenu) {
+        let accessibilityGranted = AXIsProcessTrusted()
+
+        let keyboardToggle = NSMenuItem(title: L10n.keyboardTitle(pro: license.isEntitled), action: #selector(toggleKeyboard), keyEquivalent: "")
+        keyboardToggle.target = self
+        keyboardToggle.state = license.isEntitled && keyboardEnabled ? .on : .off
+        if !accessibilityGranted {
+            keyboardToggle.attributedTitle = NSAttributedString(string: keyboardToggle.title, attributes: [.foregroundColor: NSColor.disabledControlTextColor])
+        }
+        menu.addItem(keyboardToggle)
 
         let bundleID = lastActiveApplication?.bundleIdentifier
         let applicationName = lastActiveApplication?.localizedName
@@ -231,19 +378,264 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
             menu.addItem(addCurrent)
         }
 
-        let guide = NSMenuItem(title: NSLocalizedString("onboarding.title", comment: ""), action: #selector(openRuleGuide), keyEquivalent: "")
-        guide.target = self
-        menu.addItem(guide)
         let settings = NSMenuItem(title: L10n.rulesTitle(pro: license.isEntitled), action: #selector(openExceptionsWindow), keyEquivalent: "")
         settings.target = self
         menu.addItem(settings)
+    }
 
-        if !accessibilityGranted {
-            let permission = NSMenuItem(title: L10n.grantAccessibility, action: #selector(requestAccessibility), keyEquivalent: "")
-            permission.target = self
-            menu.addItem(permission)
+    private func addAppScheduleSection(to menu: NSMenu) {
+        let entitled = license.isEntitled
+        let appActions = scheduledActions.actions.filter { $0.target.kind == .application }
+        let suffix = entitled
+            ? ScheduleDecision.topLevelSuffix(scheduledActions.actions, kind: .application, now: Date())
+            : nil
+        let entry = NSMenuItem(
+            title: L10n.scheduleTitle(pro: entitled, suffix: suffix),
+            action: nil,
+            keyEquivalent: ""
+        )
+
+        if !entitled {
+            entry.action = #selector(openLicenseWindow)
+            entry.target = self
+        } else if appActions.isEmpty {
+            entry.action = #selector(openSchedulePanelForNewTimer)
+            entry.target = self
+        } else {
+            entry.submenu = buildAppScheduleSubmenu()
         }
-        menu.addItem(.separator())
+
+        scheduleEntryItem = entry
+        menu.addItem(entry)
+
+        // 快路径与入口并列，放在「定时退出应用」正下方；子菜单给出可选时长。
+        if entitled,
+           let application = lastActiveApplication,
+           isSchedulable(application) {
+            menu.addItem(scheduleQuickItem(for: application))
+        }
+    }
+
+    private static let schedulePresets = [5, 15, 30, 60, 120]
+
+    private func scheduleQuickItem(for application: NSRunningApplication) -> NSMenuItem {
+        let item = NSMenuItem(
+            title: L10n.scheduleFastTitle(application.localizedName ?? L10n.currentApp),
+            action: nil,
+            keyEquivalent: ""
+        )
+        // 总开关关闭时这是"执行"入口，直接置灰；状态段已说明原因。
+        guard enabled else {
+            item.isEnabled = false
+            return item
+        }
+
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        let bundleID = application.bundleIdentifier ?? ""
+        for minutes in Self.schedulePresets {
+            let preset = NSMenuItem(
+                title: L10n.schedulePresetTitle(minutes),
+                action: #selector(startScheduledQuitFromPreset(_:)),
+                keyEquivalent: ""
+            )
+            preset.target = self
+            preset.representedObject = ["bundleID": bundleID, "minutes": minutes]
+            submenu.addItem(preset)
+        }
+        submenu.addItem(.separator())
+        let custom = NSMenuItem(
+            title: L10n.scheduleCustom,
+            action: #selector(openSchedulePanelForCurrentApp),
+            keyEquivalent: ""
+        )
+        custom.target = self
+        submenu.addItem(custom)
+
+        item.submenu = submenu
+        return item
+    }
+
+    private func buildAppScheduleSubmenu() -> NSMenu {
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+
+        let appActions = scheduledActions.actions.filter { $0.target.kind == .application }
+        for action in ScheduleDecision.ordered(appActions) {
+            let item = NSMenuItem(title: scheduleRowTitle(for: action), action: nil, keyEquivalent: "")
+            configure(actionRow: item, for: action)
+            scheduleRows.append(ScheduleRow(id: action.id, name: action.displayName, item: item))
+            submenu.addItem(item)
+        }
+
+        submenu.addItem(.separator())
+        let add = NSMenuItem(title: L10n.scheduleAdd, action: #selector(openSchedulePanelForNewTimer), keyEquivalent: "")
+        add.target = self
+        submenu.addItem(add)
+
+        if !appActions.isEmpty {
+            let cancelAll = NSMenuItem(title: L10n.scheduleCancelAll, action: #selector(cancelAllAppScheduleActions), keyEquivalent: "")
+            cancelAll.target = self
+            submenu.addItem(cancelAll)
+        }
+
+        return submenu
+    }
+
+    // MARK: - 定时弹出硬盘
+
+    @discardableResult
+    private func addDiskScheduleSection(to menu: NSMenu) -> Bool {
+        availableDisks = DiskCatalog.ejectableDisks()
+        guard !availableDisks.isEmpty else { return false }
+
+        let entitled = license.isEntitled
+        let diskActions = scheduledActions.actions.filter { $0.target.kind == .disk }
+        let suffix = entitled
+            ? ScheduleDecision.topLevelSuffix(scheduledActions.actions, kind: .disk, now: Date())
+            : nil
+        let entry = NSMenuItem(
+            title: L10n.ejectTitle(pro: entitled, suffix: suffix),
+            action: nil,
+            keyEquivalent: ""
+        )
+
+        if !entitled {
+            entry.action = #selector(openLicenseWindow)
+            entry.target = self
+        } else if diskActions.isEmpty {
+            entry.action = #selector(openEjectPanelForNewDisk)
+            entry.target = self
+        } else {
+            entry.submenu = buildDiskSubmenu()
+        }
+        ejectEntryItem = entry
+        menu.addItem(entry)
+
+        if entitled {
+            for disk in availableDisks {
+                menu.addItem(diskQuickItem(for: disk))
+            }
+        }
+        return true
+    }
+
+    private func buildDiskSubmenu() -> NSMenu {
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+
+        let diskActions = scheduledActions.actions.filter { $0.target.kind == .disk }
+        for action in ScheduleDecision.ordered(diskActions) {
+            let item = NSMenuItem(title: diskRowTitle(for: action), action: nil, keyEquivalent: "")
+            configure(actionRow: item, for: action)
+            scheduleRows.append(ScheduleRow(id: action.id, name: action.displayName, item: item))
+            submenu.addItem(item)
+        }
+
+        submenu.addItem(.separator())
+        let add = NSMenuItem(title: L10n.ejectAdd, action: #selector(openEjectPanelForNewDisk), keyEquivalent: "")
+        add.target = self
+        submenu.addItem(add)
+
+        if !diskActions.isEmpty {
+            let cancelAll = NSMenuItem(title: L10n.scheduleCancelAll, action: #selector(cancelAllDiskScheduleActions), keyEquivalent: "")
+            cancelAll.target = self
+            submenu.addItem(cancelAll)
+        }
+
+        return submenu
+    }
+
+    private func diskQuickItem(for disk: ScheduledDisk) -> NSMenuItem {
+        let existing = scheduledActions.actions.first {
+            $0.target.kind == .disk && $0.target.identifier == disk.mainVolumePath
+        }
+        let title: String
+        if let existing, existing.state == .armed {
+            title = L10n.ejectFastTitle(
+                disk.displayName,
+                remaining: ScheduleDecision.remainingText(fireAt: existing.fireAt, now: Date())
+            )
+        } else {
+            title = L10n.ejectFastTitle(disk.displayName)
+        }
+
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.toolTip = disk.detail
+        guard enabled else {
+            item.isEnabled = false
+            return item
+        }
+
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+
+        let ejectNow = NSMenuItem(title: L10n.ejectNow, action: #selector(ejectDiskNow(_:)), keyEquivalent: "")
+        ejectNow.target = self
+        ejectNow.representedObject = [
+            "path": disk.mainVolumePath,
+            "name": disk.displayName,
+        ]
+        submenu.addItem(ejectNow)
+        submenu.addItem(.separator())
+
+        for minutes in Self.schedulePresets {
+            let preset = NSMenuItem(
+                title: L10n.schedulePresetTitle(minutes),
+                action: #selector(startDiskEjectFromPreset(_:)),
+                keyEquivalent: ""
+            )
+            preset.target = self
+            preset.representedObject = [
+                "bsdName": disk.bsdName,
+                "path": disk.mainVolumePath,
+                "name": disk.displayName,
+                "minutes": minutes,
+            ]
+            submenu.addItem(preset)
+        }
+        submenu.addItem(.separator())
+        let custom = NSMenuItem(title: L10n.scheduleCustom, action: #selector(openEjectPanelForDisk(_:)), keyEquivalent: "")
+        custom.target = self
+        custom.representedObject = disk.bsdName
+        submenu.addItem(custom)
+
+        if let existing {
+            submenu.addItem(.separator())
+            let cancel = NSMenuItem(title: L10n.ejectCancel, action: #selector(cancelScheduledAction(_:)), keyEquivalent: "")
+            cancel.target = self
+            cancel.representedObject = existing.id.uuidString
+            submenu.addItem(cancel)
+        }
+
+        item.submenu = submenu
+        diskRows.append(DiskRow(disk: disk, item: item, hadAction: existing != nil))
+        return item
+    }
+
+    private func configure(actionRow item: NSMenuItem, for action: ScheduledAction) {
+        switch action.state {
+        case .armed:
+            item.target = self
+            item.action = #selector(cancelScheduledAction(_:))
+            item.representedObject = action.id.uuidString
+            item.toolTip = L10n.scheduleCancelHint
+        case .refused:
+            item.target = self
+            item.action = #selector(retryScheduledAction(_:))
+            item.representedObject = action.id.uuidString
+            item.toolTip = L10n.scheduleRetryHint
+        case .firing:
+            item.isEnabled = false
+        }
+    }
+
+    private func addApplicationSection(to menu: NSMenu) {
+        if !license.hasPro {
+            let unlock = NSMenuItem(title: L10n.licenseMenuUnlock, action: #selector(openLicenseWindow), keyEquivalent: "")
+            unlock.target = self
+            menu.addItem(unlock)
+        }
 
         let licenseItem = NSMenuItem(title: L10n.licenseMenuManage, action: #selector(openLicenseWindow), keyEquivalent: "")
         licenseItem.target = self
@@ -258,12 +650,466 @@ final class NeatQuitAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate
         menu.addItem(quit)
     }
 
+    // MARK: - 定时退出的菜单刷新
+
+    private func scheduleRowTitle(for action: ScheduledAction) -> String {
+        switch action.state {
+        case .armed:
+            let remaining = ScheduleDecision.remainingText(fireAt: action.fireAt, now: Date())
+            return L10n.scheduleRowTitle(name: action.displayName, remaining: remaining)
+        case .refused:
+            return L10n.scheduleRefusedTitle(action.displayName)
+        case .firing:
+            return L10n.scheduleFiringTitle(action.displayName)
+        }
+    }
+
+    private func diskRowTitle(for action: ScheduledAction) -> String {
+        switch action.state {
+        case .armed:
+            let remaining = ScheduleDecision.remainingText(fireAt: action.fireAt, now: Date())
+            return L10n.diskRowTitle(name: action.displayName, remaining: remaining)
+        case .refused:
+            return L10n.diskRefusedTitle(action.displayName)
+        case .firing:
+            return L10n.diskFiringTitle(action.displayName)
+        }
+    }
+
+    /// 菜单打开期间只改标题，不增删条目，避免 menu tracking 期间的抖动。
+    private func updateScheduleTitles() {
+        let now = Date()
+        let actions = scheduledActions.actions
+
+        if let entry = scheduleEntryItem {
+            let suffix = license.isEntitled
+                ? ScheduleDecision.topLevelSuffix(actions, kind: .application, now: now)
+                : nil
+            entry.title = L10n.scheduleTitle(pro: license.isEntitled, suffix: suffix)
+        }
+        if let entry = ejectEntryItem {
+            let suffix = license.isEntitled
+                ? ScheduleDecision.topLevelSuffix(actions, kind: .disk, now: now)
+                : nil
+            entry.title = L10n.ejectTitle(pro: license.isEntitled, suffix: suffix)
+        }
+
+        for row in scheduleRows {
+            guard let action = actions.first(where: { $0.id == row.id }) else {
+                row.item.title = L10n.scheduleEndedTitle(row.name)
+                row.item.isEnabled = false
+                row.item.action = nil
+                row.item.toolTip = nil
+                continue
+            }
+            row.item.title = action.target.kind == .disk
+                ? diskRowTitle(for: action)
+                : scheduleRowTitle(for: action)
+            switch action.state {
+            case .armed:
+                row.item.isEnabled = true
+                row.item.action = #selector(cancelScheduledAction(_:))
+                row.item.representedObject = action.id.uuidString
+                row.item.toolTip = L10n.scheduleCancelHint
+            case .refused:
+                row.item.isEnabled = true
+                row.item.action = #selector(retryScheduledAction(_:))
+                row.item.representedObject = action.id.uuidString
+                row.item.toolTip = L10n.scheduleRetryHint
+            case .firing:
+                row.item.isEnabled = false
+                row.item.action = nil
+                row.item.toolTip = nil
+            }
+        }
+
+        for row in diskRows {
+            guard let action = actions.first(where: {
+                $0.target.kind == .disk && $0.target.identifier == row.disk.mainVolumePath
+            }) else {
+                if row.hadAction {
+                    row.item.title = L10n.diskEndedTitle(row.disk.displayName)
+                    row.item.isEnabled = false
+                } else {
+                    row.item.title = L10n.ejectFastTitle(row.disk.displayName)
+                    row.item.isEnabled = true
+                }
+                continue
+            }
+            switch action.state {
+            case .armed:
+                row.item.title = L10n.ejectFastTitle(
+                    row.disk.displayName,
+                    remaining: ScheduleDecision.remainingText(fireAt: action.fireAt, now: now)
+                )
+            case .refused:
+                row.item.title = L10n.diskRefusedTitle(row.disk.displayName)
+            case .firing:
+                row.item.title = L10n.diskFiringTitle(row.disk.displayName)
+            }
+        }
+    }
+
+    private func startMenuCountdown() {
+        stopMenuCountdown()
+        guard license.isEntitled, !scheduledActions.actions.isEmpty else { return }
+        // 必须挂到 .common，否则菜单追踪期间 .default 模式下的定时器不会触发。
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateScheduleTitles() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        menuCountdownTimer = timer
+    }
+
+    private func stopMenuCountdown() {
+        menuCountdownTimer?.invalidate()
+        menuCountdownTimer = nil
+    }
+
     @objc private func toggleEnabled() {
         guard AXIsProcessTrusted() else { showAccessibilityRequired(); return }
-        enabled.toggle()
-        UserDefaults.standard.set(enabled, forKey: "enabled")
-        if enabled { _ = monitor.start() } else { monitor.stop() }
+        if enabled {
+            let active = scheduledActions.actions.filter { $0.state == .armed || $0.state == .refused }
+            if active.isEmpty {
+                setEnabled(false)
+            } else if confirmDisabling(with: active) {
+                setEnabled(false)
+            }
+        } else {
+            setEnabled(true)
+        }
+    }
+
+    /// 全局总开关：关闭时连同待执行的定时任务一起停掉。
+    private func setEnabled(_ value: Bool) {
+        enabled = value
+        UserDefaults.standard.set(value, forKey: "enabled")
+        if value {
+            _ = monitor.start()
+        } else {
+            scheduler.cancelAll()
+            monitor.stop()
+        }
         refreshMenu()
+    }
+
+    private func confirmDisabling(with actions: [ScheduledAction]) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L10n.scheduleConfirmTitle
+
+        let now = Date()
+        var lines = L10n.scheduleConfirmMessage(actions.count)
+        for action in ScheduleDecision.ordered(actions).prefix(3) {
+            switch (action.target.kind, action.state) {
+            case (.application, .armed):
+                lines += "\n" + L10n.scheduleRowTitle(
+                    name: action.displayName,
+                    remaining: ScheduleDecision.remainingText(fireAt: action.fireAt, now: now)
+                )
+            case (.application, .refused):
+                lines += "\n" + L10n.scheduleRefusedTitle(action.displayName)
+            case (.application, .firing):
+                lines += "\n" + L10n.scheduleFiringTitle(action.displayName)
+            case (.disk, .armed):
+                lines += "\n" + L10n.diskRowTitle(
+                    name: action.displayName,
+                    remaining: ScheduleDecision.remainingText(fireAt: action.fireAt, now: now)
+                )
+            case (.disk, .refused):
+                lines += "\n" + L10n.diskRefusedTitle(action.displayName)
+            case (.disk, .firing):
+                lines += "\n" + L10n.diskFiringTitle(action.displayName)
+            }
+        }
+        if actions.count > 3 {
+            lines += "\n" + L10n.scheduleConfirmMore(actions.count - 3)
+        }
+        alert.informativeText = lines
+        alert.addButton(withTitle: L10n.cancel)
+        alert.addButton(withTitle: L10n.scheduleConfirmAction)
+        NSApp.activate(ignoringOtherApps: true)
+        return alert.runModal() == .alertSecondButtonReturn
+    }
+
+    // MARK: - 定时退出
+
+    @objc private func openSchedulePanelForNewTimer() {
+        guard license.isEntitled else { openLicenseWindow(); return }
+        guard enabled else { showScheduleDisabledAlert(); return }
+        presentSchedulePanel(preselecting: nil, minutes: 30)
+    }
+
+    @objc private func openSchedulePanelForCurrentApp() {
+        guard license.isEntitled else { openLicenseWindow(); return }
+        guard enabled else { showScheduleDisabledAlert(); return }
+        guard let application = lastActiveApplication, isSchedulable(application) else { return }
+        presentSchedulePanel(preselecting: application, minutes: 30, prefersCustom: true)
+    }
+
+    @objc private func startScheduledQuitFromPreset(_ sender: NSMenuItem) {
+        guard license.isEntitled else { openLicenseWindow(); return }
+        guard enabled else { return }
+        guard let info = sender.representedObject as? [String: Any],
+              let bundleID = info["bundleID"] as? String,
+              let minutes = info["minutes"] as? Int,
+              let application = NSRunningApplication
+                  .runningApplications(withBundleIdentifier: bundleID)
+                  .first else { return }
+        startScheduledQuit(for: application, minutes: minutes)
+    }
+
+    @objc private func cancelScheduledAction(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
+        scheduler.cancel(id: id)
+    }
+
+    @objc private func retryScheduledAction(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let id = UUID(uuidString: raw) else { return }
+        scheduler.retry(id: id)
+    }
+
+    @objc private func cancelAllAppScheduleActions() {
+        cancelAllScheduleActions(kind: .application)
+    }
+
+    @objc private func cancelAllDiskScheduleActions() {
+        cancelAllScheduleActions(kind: .disk)
+    }
+
+    private func cancelAllScheduleActions(kind: ScheduleTarget.Kind) {
+        for action in scheduledActions.actions where action.target.kind == kind {
+            scheduler.cancel(id: action.id)
+        }
+    }
+
+    /// 定时退出的目标只能是有 Dock 图标的普通应用，且不能是自己或 Finder。
+    private func isSchedulable(_ application: NSRunningApplication) -> Bool {
+        guard let bundleID = application.bundleIdentifier else { return false }
+        return application.activationPolicy == .regular
+            && application != NSRunningApplication.current
+            && bundleID != "com.apple.finder"
+    }
+
+    private func presentSchedulePanel(
+        preselecting application: NSRunningApplication?,
+        minutes: Int,
+        prefersCustom: Bool = false
+    ) {
+        let applications = NSWorkspace.shared.runningApplications
+            .filter { isSchedulable($0) }
+            .sorted {
+                ($0.localizedName ?? "").localizedStandardCompare($1.localizedName ?? "") == .orderedAscending
+            }
+
+        let view = ScheduleEditorView(
+            applications: applications,
+            initialBundleID: application?.bundleIdentifier,
+            initialMinutes: minutes,
+            prefersCustomDuration: prefersCustom,
+            onStart: { [weak self] target, minutes in
+                self?.startScheduledQuit(for: target, minutes: minutes)
+                self?.closeSchedulePanel()
+            },
+            onCancel: { [weak self] in self?.closeSchedulePanel() }
+        )
+
+        let window: NSWindow
+        if let existing = scheduleWindow {
+            window = existing
+        } else {
+            window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 460, height: 240),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.isReleasedWhenClosed = false
+            window.title = L10n.schedulePanelTitle
+            window.center()
+            scheduleWindow = window
+        }
+
+        let hosting = NSHostingView(rootView: view)
+        hosting.layoutSubtreeIfNeeded()
+        window.contentView = hosting
+        window.setContentSize(NSSize(width: 460, height: max(200, hosting.fittingSize.height)))
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func closeSchedulePanel() {
+        scheduleWindow?.orderOut(nil)
+    }
+
+    private func startScheduledQuit(for application: NSRunningApplication, minutes: Int) {
+        guard let bundleID = application.bundleIdentifier else { return }
+        scheduler.add(
+            target: .application(bundleID),
+            displayName: application.localizedName ?? bundleID,
+            duration: TimeInterval(minutes * 60)
+        )
+    }
+
+    // MARK: - 定时弹出硬盘
+
+    @objc private func startDiskEjectFromPreset(_ sender: NSMenuItem) {
+        guard license.isEntitled, enabled else { return }
+        guard let info = sender.representedObject as? [String: Any],
+              let bsdName = info["bsdName"] as? String,
+              let path = info["path"] as? String,
+              let name = info["name"] as? String,
+              let minutes = info["minutes"] as? Int else { return }
+        startDiskEject(bsdName: bsdName, mainVolumePath: path, displayName: name, minutes: minutes)
+    }
+
+    @objc private func ejectDiskNow(_ sender: NSMenuItem) {
+        guard license.isEntitled else { openLicenseWindow(); return }
+        guard enabled else { return }
+        guard let info = sender.representedObject as? [String: Any],
+              let path = info["path"] as? String,
+              let name = info["name"] as? String else { return }
+        DiskEjector.eject(mainVolumePath: path) { [weak self] success in
+            guard let self, !success else { return }
+            self.showEjectFailure(name: name)
+        }
+    }
+
+    private func showEjectFailure(name: String) {
+        let alert = NSAlert()
+        alert.messageText = L10n.ejectFailedTitle(name)
+        alert.informativeText = L10n.ejectFailedMessage
+        alert.addButton(withTitle: L10n.okay)
+        NSApp.activate(ignoringOtherApps: true)
+        alert.runModal()
+    }
+
+    @objc private func openEjectPanelForNewDisk() {
+        guard license.isEntitled else { openLicenseWindow(); return }
+        guard enabled else { showScheduleDisabledAlert(); return }
+        presentEjectPanel(preselecting: nil, minutes: 30)
+    }
+
+    @objc private func openEjectPanelForDisk(_ sender: NSMenuItem) {
+        guard license.isEntitled else { openLicenseWindow(); return }
+        guard enabled else { showScheduleDisabledAlert(); return }
+        guard let bsdName = sender.representedObject as? String else { return }
+        presentEjectPanel(preselecting: bsdName, minutes: 30, prefersCustom: true)
+    }
+
+    private func presentEjectPanel(
+        preselecting bsdName: String?,
+        minutes: Int,
+        prefersCustom: Bool = false
+    ) {
+        let disks = DiskCatalog.ejectableDisks()
+        guard !disks.isEmpty else { return }
+
+        let view = EjectPanelView(
+            disks: disks,
+            initialDiskID: bsdName ?? disks.first?.bsdName,
+            initialMinutes: minutes,
+            prefersCustomDuration: prefersCustom,
+            onStart: { [weak self] disk, minutes in
+                self?.startDiskEject(
+                    bsdName: disk.bsdName,
+                    mainVolumePath: disk.mainVolumePath,
+                    displayName: disk.displayName,
+                    minutes: minutes
+                )
+                self?.closeEjectPanel()
+            },
+            onCancel: { [weak self] in self?.closeEjectPanel() }
+        )
+
+        let window: NSWindow
+        if let existing = ejectWindow {
+            window = existing
+        } else {
+            window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 460, height: 240),
+                styleMask: [.titled, .closable],
+                backing: .buffered,
+                defer: false
+            )
+            window.isReleasedWhenClosed = false
+            window.title = L10n.ejectPanelTitle
+            window.center()
+            ejectWindow = window
+        }
+
+        let hosting = NSHostingView(rootView: view)
+        hosting.layoutSubtreeIfNeeded()
+        window.contentView = hosting
+        window.setContentSize(NSSize(width: 460, height: max(200, hosting.fittingSize.height)))
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func closeEjectPanel() {
+        ejectWindow?.orderOut(nil)
+    }
+
+    private func startDiskEject(bsdName: String, mainVolumePath: String, displayName: String, minutes: Int) {
+        scheduler.add(
+            target: .disk(mainVolumePath: mainVolumePath, bsdName: bsdName),
+            displayName: displayName,
+            duration: TimeInterval(minutes * 60)
+        )
+    }
+
+    // MARK: - 调度器桥接
+
+    private func isTargetAvailable(_ action: ScheduledAction) -> Bool {
+        switch action.target.kind {
+        case .application:
+            return AppTerminator.isRunning(bundleID: action.target.identifier)
+        case .disk:
+            return DiskCatalog.isVolumeMounted(path: action.target.identifier)
+        }
+    }
+
+    private func isTargetStillPresent(_ action: ScheduledAction) -> Bool {
+        switch action.target.kind {
+        case .application:
+            return AppTerminator.isRunning(bundleID: action.target.identifier)
+        case .disk:
+            if let bsdName = action.target.diskBSDName, DiskCatalog.isDiskPresent(bsdName: bsdName) {
+                return true
+            }
+            return DiskCatalog.isVolumeMounted(path: action.target.identifier)
+        }
+    }
+
+    private func perform(_ action: ScheduledAction, completion: @escaping (Bool) -> Void) {
+        switch action.target.kind {
+        case .application:
+            completion(AppTerminator.quit(bundleID: action.target.identifier))
+        case .disk:
+            let path = action.target.identifier
+            guard DiskCatalog.isVolumeMounted(path: path) else {
+                completion(false)
+                return
+            }
+            DiskEjector.eject(mainVolumePath: path, completion: completion)
+        }
+    }
+
+    private func showScheduleDisabledAlert() {
+        let alert = NSAlert()
+        alert.messageText = L10n.scheduleDisabledTitle
+        alert.informativeText = L10n.scheduleDisabledMessage
+        alert.addButton(withTitle: L10n.cancel)
+        alert.addButton(withTitle: L10n.scheduleDisabledAction)
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertSecondButtonReturn {
+            setEnabled(true)
+            presentSchedulePanel(preselecting: nil, minutes: 30)
+        }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        stopMenuCountdown()
+        authorizationTimer?.invalidate()
     }
 
     @objc private func toggleKeyboard() {
