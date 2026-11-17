@@ -343,4 +343,8 @@ jobs:
         uses: actions/checkout@v7
 
       - name: 校验发布物
+        env:
+          # GitHub API 对未认证请求按 IP 限流，shared runner 上容易 403；
+          # 传 workflow token 后是 5000 次/小时，不会再被限流。
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/verify-release.py "${{ github.ref_name }}"

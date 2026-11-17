@@ -26,6 +26,10 @@ SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 BUNDLE_ID = "fun.bgm.neatquit"
 MIN_MACOS = "13.0"
 
+# GitHub API 对未认证请求按来源 IP 限流（shared runner 很容易 403）。
+# CI 里传入 workflow 的 github.token，本地可传 `GH_TOKEN=$(gh auth token)`。
+GITHUB_TOKEN = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+
 # 本次 tag 的工程配置（相对于脚本所在仓库），用来核对 DMG 里的 Bundle ID。
 # verify job 是浅克隆，但工作区就是本次 tag 的代码，直接读文件即可，不依赖 git 历史。
 PROJECT_FILE = Path(__file__).resolve().parent.parent / "neatquit" / "NeatQuit.xcodeproj" / "project.pbxproj"
@@ -55,9 +59,20 @@ def run(command: list[str]) -> subprocess.CompletedProcess[str]:
 
 
 def fetch(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "NeatQuit-release-verify"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return response.read()
+    headers = {"User-Agent": "NeatQuit-release-verify"}
+    if GITHUB_TOKEN and url.startswith("https://api.github.com/"):
+        headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return response.read()
+    except urllib.error.HTTPError as error:
+        if error.code == 403 and "api.github.com" in url:
+            raise SystemExit(
+                "GitHub API 返回 403（未认证限流）。请在 CI 里把 GITHUB_TOKEN/GH_TOKEN "
+                "传给本脚本，或本地执行 GH_TOKEN=$(gh auth token) ./scripts/verify-release.py <tag>"
+            ) from error
+        raise
 
 
 def sha256(path: str) -> str:
