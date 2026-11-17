@@ -1,0 +1,26 @@
+name: Verify Release
+
+# 手动补校验已发布的版本：从 master 取得最新的 verify-release.py，
+# 用 workflow token 访问 GitHub API（避免 shared runner 未认证限流），
+# 校验线上发布物（GitHub Release、app.bgm.fun appcast、DMG 签名与公证）。
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 要校验的 tag（例如 v1.6.2）
+        required: true
+
+jobs:
+  verify:
+    runs-on: macos-26
+    steps:
+      - name: 检出 master（使用最新的校验脚本）
+        uses: actions/checkout@v7
+        with:
+          ref: master
+
+      - name: 校验发布物
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: ./scripts/verify-release.py "$TAG"
