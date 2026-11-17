@@ -46,6 +46,9 @@ enum L10n {
     static let settingsSearchPlaceholder = text("settings.search.placeholder")
     static let settingsClearSearch = text("settings.search.clear")
     static let settingsNoResults = text("settings.search.noResults")
+    static let settingsReset = text("settings.reset")
+    static let settingsResetTitle = text("settings.reset.title")
+    static let settingsResetConfirm = text("settings.reset.confirm")
 
     // 定时退出
     static let scheduleEntryBase = text("menu.schedule")
@@ -297,6 +300,10 @@ enum L10n {
 
     static func settingsEmpty(mode: RuleMode) -> String {
         mode == .allExceptListed ? text("settings.empty.exclude") : text("settings.empty.only")
+    }
+
+    static func settingsResetMessage(mode: RuleMode) -> String {
+        mode == .allExceptListed ? text("settings.reset.message.exclude") : text("settings.reset.message.only")
     }
 
     static func chooseAppMessage(mode: RuleMode) -> String {

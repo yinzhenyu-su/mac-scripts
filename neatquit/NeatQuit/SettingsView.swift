@@ -3,7 +3,19 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var store: RuleStore
-    @State private var errorMessage: String?
+    /// 单一 alert 入口：「添加 App 失败」与「重置确认」共用，避免两个 .alert 互相覆盖。
+    private enum SettingsAlert {
+        case cannotAddApp(String)
+        case confirmReset
+
+        var title: String {
+            switch self {
+            case .cannotAddApp: return L10n.cannotAddApp
+            case .confirmReset: return L10n.settingsResetTitle
+            }
+        }
+    }
+    @State private var activeAlert: SettingsAlert?
     @State private var searchText = ""
 
     private var trimmedSearchText: String {
@@ -71,6 +83,7 @@ struct SettingsView: View {
 
             HStack(alignment: .firstTextBaseline) {
                 Button(L10n.addApp) { chooseApplication() }
+                Button(L10n.settingsReset) { activeAlert = .confirmReset }
                 Spacer()
                 Text(L10n.settingsFooter(mode: store.mode))
                     .font(.caption)
@@ -79,13 +92,27 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 560)
-        .alert(L10n.cannotAddApp, isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button(L10n.okay, role: .cancel) { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
+        .alert(Text(activeAlert?.title ?? ""), isPresented: Binding(
+            get: { activeAlert != nil },
+            set: { if !$0 { activeAlert = nil } }
+        ), presenting: activeAlert) { alert in
+            switch alert {
+            case .cannotAddApp:
+                Button(L10n.okay, role: .cancel) { activeAlert = nil }
+            case .confirmReset:
+                Button(L10n.cancel, role: .cancel) { activeAlert = nil }
+                Button(L10n.settingsResetConfirm, role: .destructive) {
+                    store.resetActiveRulesToDefault()
+                    activeAlert = nil
+                }
+            }
+        } message: { alert in
+            switch alert {
+            case .cannotAddApp(let message):
+                Text(message)
+            case .confirmReset:
+                Text(L10n.settingsResetMessage(mode: store.mode))
+            }
         }
     }
 
@@ -132,7 +159,7 @@ struct SettingsView: View {
         panel.message = L10n.chooseAppMessage(mode: store.mode)
         if panel.runModal() == .OK, let url = panel.url {
             do { try store.addApplication(at: url) }
-            catch { errorMessage = error.localizedDescription }
+            catch { activeAlert = .cannotAddApp(error.localizedDescription) }
         }
     }
 }

@@ -61,30 +61,574 @@ precondition(AppRule(match: .applicationName, value: "Music").matches(searchQuer
 print("46 decision cases passed")
 
 MainActor.assumeIsolated {
+    // 内置 bundleID 规则必须全部有显示名映射：未安装时不能显示裸 bundle ID。
+    // 覆盖范围是 legacyDefaults ∪ residentRules（40 条）；Messages/Terminal 是系统 App，总走 NSWorkspace 解析名。
+    let builtinBundleIDs = Set(
+        RuleStore.legacyDefaults.union(RuleStore.residentRules)
+            .filter { $0.match == .bundleID }
+            .map(\.value)
+    )
+    let displayNameKeys = AppRule.builtinDisplayNameKeys
+    precondition(builtinBundleIDs.count == 40, "builtin bundle ID rules")
+    precondition(displayNameKeys.count == 40, "display-name mapping count")
+    precondition(Set(displayNameKeys.keys) == builtinBundleIDs, "mapping covers exactly the builtin bundle ID rules")
+    precondition(Set(displayNameKeys.values).count == 40, "display-name keys are unique")
+    precondition(displayNameKeys.values.allSatisfy { $0.hasPrefix("rule.builtin.") })
+
+    // 用 #filePath 推仓库根，避免依赖测试进程的 CWD；NSDictionary(contentsOfFile:) 同时校验 .strings 语法。
+    let repoNeatQuit = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    for language in ["zh-Hans", "en"] {
+        let path = repoNeatQuit.appendingPathComponent("NeatQuit/\(language).lproj/Localizable.strings").path
+        guard let strings = NSDictionary(contentsOfFile: path) as? [String: String] else {
+            preconditionFailure("cannot parse \(path) as a strings dictionary")
+        }
+        for (bundleID, key) in displayNameKeys {
+            guard let value = strings[key], !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                preconditionFailure("\(language) Localizable.strings is missing a value for \(key) (\(bundleID))")
+            }
+        }
+    }
+
+    // 测试/CI 环境未安装这些 App，也不能回退成裸 bundle ID（不断言具体安装态名称，避免机器差异）。
+    let uninstalled = AppRule(match: .bundleID, value: "com.tinyspeck.slackmacgap")
+    precondition(uninstalled.displayName != "com.tinyspeck.slackmacgap")
+    precondition(AppRule.builtinDisplayNameKey(for: "com.tinyspeck.slackmacgap") == "rule.builtin.slack")
+    precondition(AppRule.builtinDisplayNameKey(for: "com.example.unknown") == nil)
+    // 按应用名匹配的旧规则保持原值；自建（无映射）的 bundleID 规则仍显示 bundle ID。
+    precondition(AppRule(match: .applicationName, value: "Legacy Helper").displayName == "Legacy Helper")
+    precondition(AppRule(match: .bundleID, value: "com.example.unknown").displayName == "com.example.unknown")
+}
+print("Builtin display name cases passed")
+
+MainActor.assumeIsolated {
     let name = "fun.bgm.neatquit.onboarding-tests.\(UUID().uuidString)"
     let prefs = UserDefaults(suiteName: name)!
-    defer { prefs.removePersistentDomain(forName: name) }
-    let fresh = RuleStore(defaults: prefs)
+    // 旧域同样隔离：init 的默认参数会读真实旧域，不注入空 suite 会让用例结果依赖本机数据。
+    let legacyName = "fun.bgm.neatquit.onboarding-legacy.\(UUID().uuidString)"
+    let legacyPrefs = UserDefaults(suiteName: legacyName)!
+    defer {
+        prefs.removePersistentDomain(forName: name)
+        legacyPrefs.removePersistentDomain(forName: legacyName)
+    }
+    let fresh = RuleStore(defaults: prefs, legacyDomainDefaults: legacyPrefs)
     precondition(fresh.needsOnboarding)
     precondition(!prefs.bool(forKey: "rules.legacyUsageSnapshot"))
     precondition(fresh.exceptionRules.contains(AppRule(match: .bundleID, value: "com.apple.Terminal")))
-    precondition(RuleStore(defaults: prefs).needsOnboarding)
+    precondition(RuleStore(defaults: prefs, legacyDomainDefaults: legacyPrefs).needsOnboarding)
     fresh.finishOnboarding()
-    precondition(!RuleStore(defaults: prefs).needsOnboarding)
+    precondition(!RuleStore(defaults: prefs, legacyDomainDefaults: legacyPrefs).needsOnboarding)
     prefs.removePersistentDomain(forName: name)
     prefs.set(false, forKey: "enabled")
-    let old = RuleStore(defaults: prefs)
-    precondition(!old.needsOnboarding && old.exceptionRules == RuleStore.legacyDefaults)
+    let old = RuleStore(defaults: prefs, legacyDomainDefaults: legacyPrefs)
+    // 没有已保存列表时一律播种当前默认名单（58 条），existing 只影响 onboarding 标记。
+    precondition(!old.needsOnboarding && old.exceptionRules == RuleStore.defaultRules)
     prefs.removePersistentDomain(forName: name)
     prefs.set(Data("broken".utf8), forKey: "applicationRules")
-    precondition(RuleStore(defaults: prefs).exceptionRules == RuleStore.legacyDefaults)
+    precondition(RuleStore(defaults: prefs, legacyDomainDefaults: legacyPrefs).exceptionRules == RuleStore.defaultRules)
     prefs.removePersistentDomain(forName: name)
     prefs.set(try! JSONEncoder().encode(Set<AppRule>()), forKey: "applicationRules")
     prefs.set("onlyListed", forKey: "ruleMode")
-    let custom = RuleStore(defaults: prefs)
+    let custom = RuleStore(defaults: prefs, legacyDomainDefaults: legacyPrefs)
     precondition(custom.mode == .onlyListed && custom.exceptionRules.isEmpty)
 }
 print("Onboarding migration cases passed")
+
+MainActor.assumeIsolated {
+    let currentName = "fun.bgm.neatquit.migration-current.\(UUID().uuidString)"
+    let legacyName = "fun.bgm.neatquit.migration-legacy.\(UUID().uuidString)"
+    let current = UserDefaults(suiteName: currentName)!
+    let legacy = UserDefaults(suiteName: legacyName)!
+    defer {
+        current.removePersistentDomain(forName: currentName)
+        legacy.removePersistentDomain(forName: legacyName)
+    }
+
+    let legacyRules: Set<AppRule> = [
+        AppRule(match: .bundleID, value: "com.example.legacy.music"),
+        AppRule(match: .applicationName, value: "Legacy Helper"),
+    ]
+    let legacyQuitRules: Set<AppRule> = [AppRule(match: .bundleID, value: "com.example.legacy.only")]
+
+    func resetDomains() {
+        current.removePersistentDomain(forName: currentName)
+        legacy.removePersistentDomain(forName: legacyName)
+    }
+
+    // 迁移涉及的全部键的快照，用于验证第二次启动不改写任何值。
+    func snapshot() -> NSDictionary {
+        let keys = [
+            "applicationRules", "applicationQuitRules", "ruleMode", "enabled", "keyboardEnabled",
+            "license.legacyPro", "rules.onboardingHandled", "rules.legacyUsageSnapshot",
+            "rules.migratedFromLegacyDomain",
+        ]
+        var values: [String: Any] = [:]
+        for key in keys {
+            if let value = current.object(forKey: key) { values[key] = value }
+        }
+        return values as NSDictionary
+    }
+
+    // 旧域有规则 + 新域为空 → 规则/模式/开关整体迁移，老用户保留 Pro 且不再看引导
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    legacy.set(try! JSONEncoder().encode(legacyQuitRules), forKey: "applicationQuitRules")
+    legacy.set("onlyListed", forKey: "ruleMode")
+    legacy.set(true, forKey: "enabled")
+    legacy.set(true, forKey: "keyboardEnabled")
+
+    let migrated = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(migrated.mode == .onlyListed, "rule mode migrated from legacy domain")
+    precondition(migrated.exceptionRules == legacyRules, "exception rules migrated from legacy domain")
+    precondition(migrated.quitRules == legacyQuitRules, "quit rules migrated from legacy domain")
+    precondition(current.bool(forKey: "enabled") && current.bool(forKey: "keyboardEnabled"), "switches migrated from legacy domain")
+    precondition(!migrated.needsOnboarding, "migrated user does not see onboarding again")
+    precondition(current.bool(forKey: "rules.legacyUsageSnapshot"), "legacy usage snapshot sees migrated data")
+    precondition(current.string(forKey: "license.legacyPro") == "1", "legacy user keeps pro")
+    precondition(current.bool(forKey: "rules.migratedFromLegacyDomain"), "migration marker written")
+
+    // 幂等：标记存在后不再读旧域，也不改写新域任何值
+    let afterMigration = snapshot()
+    legacy.set(try! JSONEncoder().encode(Set([AppRule(match: .bundleID, value: "com.example.later")])), forKey: "applicationRules")
+    let migratedAgain = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(migratedAgain.exceptionRules == legacyRules, "second launch does not re-import legacy rules")
+    precondition(migratedAgain.mode == .onlyListed)
+    precondition(snapshot() == afterMigration, "second launch does not rewrite defaults")
+
+    // 新域已有用户自己的规则 → 不搬迁，旧域值不能覆盖新域，但迁移标记必须写
+    resetDomains()
+    let currentRules: Set<AppRule> = [AppRule(match: .bundleID, value: "com.example.current")]
+    current.set(try! JSONEncoder().encode(currentRules), forKey: "applicationRules")
+    current.set("allExceptListed", forKey: "ruleMode")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    legacy.set("onlyListed", forKey: "ruleMode")
+    legacy.set(true, forKey: "keyboardEnabled")
+    let untouched = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(untouched.exceptionRules == currentRules, "existing custom new-domain rules win")
+    precondition(untouched.mode == .allExceptListed, "existing new-domain mode wins")
+    precondition(current.bool(forKey: "keyboardEnabled"), "non-list settings are filled even when rules are kept")
+    precondition(current.bool(forKey: "rules.migratedFromLegacyDomain"), "marker written without copying rules")
+
+    // 跑过 1.6.x 的用户：新域列表是旧 onboarding 自动播种的 legacyDefaults，视为未编辑 → 用旧域规则替换
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.legacyDefaults), forKey: "applicationRules")
+    current.set(false, forKey: "enabled")
+    current.set(false, forKey: "rules.onboardingHandled")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    legacy.set("onlyListed", forKey: "ruleMode")
+    legacy.set(true, forKey: "enabled")
+    legacy.set(true, forKey: "keyboardEnabled")
+    let replacedDefaults = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(replacedDefaults.exceptionRules == legacyRules, "seeded default list replaced by legacy rules")
+    precondition(replacedDefaults.mode == .onlyListed, "seeded mode is filled from legacy domain")
+    precondition(!current.bool(forKey: "enabled"), "existing switch value is never overwritten")
+    precondition(current.bool(forKey: "keyboardEnabled"), "missing switch is filled from legacy domain")
+    precondition(!replacedDefaults.needsOnboarding, "seeded user is marked as onboarded")
+    let afterReplace = snapshot()
+    let replacedAgain = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(replacedAgain.exceptionRules == legacyRules, "seeded replacement is not re-imported")
+    precondition(snapshot() == afterReplace, "seeded replacement is idempotent")
+
+    // 旧版播种的 25 条集合（legacyDefaults + 短信 + 终端）同样视为未编辑 → 替换
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.historicalAutoSeededRules[1]), forKey: "applicationRules")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    let replacedSeed = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(replacedSeed.exceptionRules == legacyRules, "old 25-rule seed list replaced by legacy rules")
+    let afterSeedReplace = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterSeedReplace, "old seed replacement is idempotent")
+
+    // 默认列表上用户自己加过项 → 不是自动播种的原始列表，保持现状
+    resetDomains()
+    var editedRules = RuleStore.defaultRules
+    editedRules.insert(AppRule(match: .bundleID, value: "com.example.user-added"))
+    current.set(try! JSONEncoder().encode(editedRules), forKey: "applicationRules")
+    current.set(true, forKey: "rules.onboardingHandled")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    let editedKept = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(editedKept.exceptionRules == editedRules, "user-edited default list is not replaced")
+    let afterEdited = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterEdited, "edited list stays unchanged on second launch")
+
+    // 空列表是用户主动清空的结果，不能当成播种列表替换
+    resetDomains()
+    current.set(try! JSONEncoder().encode(Set<AppRule>()), forKey: "applicationRules")
+    current.set(true, forKey: "rules.onboardingHandled")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    let clearedKept = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(clearedKept.exceptionRules.isEmpty, "deliberately cleared list is not replaced")
+    let afterCleared = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterCleared, "cleared list stays unchanged on second launch")
+
+    // 旧域不存在 → 无副作用（不写规则数据、不伪造 Pro），只写标记
+    resetDomains()
+    current.set(true, forKey: "rules.onboardingHandled")
+    let noLegacy = RuleStore(defaults: current, legacyDomainDefaults: nil)
+    precondition(noLegacy.exceptionRules == RuleStore.defaultRules)
+    precondition(current.object(forKey: "applicationRules") == nil, "no rule data written without a legacy domain")
+    precondition(current.object(forKey: "license.legacyPro") == nil, "no pro granted without legacy usage")
+    precondition(current.bool(forKey: "rules.migratedFromLegacyDomain"), "marker written even without legacy domain")
+
+    // 旧域数据损坏 → 坏数据不搬、不作为 Pro 依据，也不影响新域
+    resetDomains()
+    current.set(true, forKey: "rules.onboardingHandled")
+    legacy.set(Data("broken-legacy-rules".utf8), forKey: "applicationRules")
+    let corruptLegacy = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(corruptLegacy.exceptionRules == RuleStore.defaultRules)
+    precondition(current.object(forKey: "applicationRules") == nil, "broken legacy rules are not copied")
+    precondition(current.object(forKey: "license.legacyPro") == nil, "broken legacy data is not usage evidence")
+    precondition(current.bool(forKey: "rules.migratedFromLegacyDomain"))
+
+    // 标记是一次性的：首次扫描时旧域为空，之后旧域再出现数据也不会被回灌
+    resetDomains()
+    current.set(true, forKey: "rules.onboardingHandled")
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(current.bool(forKey: "rules.migratedFromLegacyDomain"))
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    let scannedOnce = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(scannedOnce.exceptionRules == RuleStore.defaultRules, "migration runs only once per domain")
+    precondition(current.object(forKey: "applicationRules") == nil)
+
+    // Pro 放宽：已经跑过 1.6.x 的用户（当前域有 trialStart/migrated/lastValidatedAt）也要补旧版 Pro
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.historicalAutoSeededRules[1]), forKey: "applicationRules")
+    current.set("2026-01-01T00:00:00Z", forKey: "license.trialStart")
+    current.set("1", forKey: "license.migrated")
+    current.set(1_700_000_000.0, forKey: "license.lastValidatedAt")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    let upgradedPro = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(upgradedPro.exceptionRules == legacyRules, "already-upgraded user gets rules back")
+    precondition(current.string(forKey: "license.legacyPro") == "1", "trial/migrated state does not block pro restore")
+    let afterUpgradedPro = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterUpgradedPro, "pro restore is idempotent")
+
+    // 已有真实 license.key 的付费用户 → 不写 legacyPro，避免混淆真实授权状态
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.historicalAutoSeededRules[1]), forKey: "applicationRules")
+    current.set("NQ-TEST-KEY-0000-0000", forKey: "license.key")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    let licensed = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(licensed.exceptionRules == legacyRules, "rules still migrate for a licensed user")
+    precondition(current.object(forKey: "license.legacyPro") == nil, "real license key blocks legacy pro")
+
+    // 已有 legacyPro（值不是 "1"）→ 不覆盖
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.historicalAutoSeededRules[1]), forKey: "applicationRules")
+    current.set("keep-me", forKey: "license.legacyPro")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(current.string(forKey: "license.legacyPro") == "keep-me", "existing legacy pro is never overwritten")
+
+    // 解耦：新域列表是用户自定义（不迁移列表）时，旧域的设置键仍按“只补 nil”补齐
+    resetDomains()
+    current.set(try! JSONEncoder().encode(currentRules), forKey: "applicationRules")
+    current.set("allExceptListed", forKey: "ruleMode")
+    legacy.set(try! JSONEncoder().encode(legacyRules), forKey: "applicationRules")
+    legacy.set(try! JSONEncoder().encode(legacyQuitRules), forKey: "applicationQuitRules")
+    legacy.set("onlyListed", forKey: "ruleMode")
+    legacy.set(false, forKey: "enabled")
+    legacy.set(true, forKey: "keyboardEnabled")
+    let decoupled = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(decoupled.exceptionRules == currentRules, "custom rule list is neither merged nor replaced")
+    precondition(decoupled.mode == .allExceptListed, "existing mode is not overwritten")
+    precondition(decoupled.quitRules == legacyQuitRules, "missing quit rules are filled")
+    precondition(current.object(forKey: "enabled") != nil && !current.bool(forKey: "enabled"), "missing enabled is filled")
+    precondition(current.bool(forKey: "keyboardEnabled"), "missing keyboardEnabled is filled")
+    precondition(!decoupled.needsOnboarding, "settings-only migration marks the user as onboarded")
+    let afterDecoupled = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterDecoupled, "settings-only migration is idempotent")
+
+    // 新域已有 keyboardEnabled=false → 不被旧域覆盖
+    resetDomains()
+    current.set(try! JSONEncoder().encode(currentRules), forKey: "applicationRules")
+    current.set(false, forKey: "keyboardEnabled")
+    legacy.set(try! JSONEncoder().encode(legacyQuitRules), forKey: "applicationQuitRules")
+    legacy.set(true, forKey: "keyboardEnabled")
+    let keepSwitch = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(!current.bool(forKey: "keyboardEnabled"), "existing keyboardEnabled wins")
+    precondition(keepSwitch.quitRules == legacyQuitRules, "other missing settings are still filled")
+    let afterKeepSwitch = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterKeepSwitch, "existing switch case is idempotent")
+
+    // 旧域 applicationQuitRules 损坏 → 跳过该键，其他设置键照常补齐
+    resetDomains()
+    current.set(try! JSONEncoder().encode(currentRules), forKey: "applicationRules")
+    legacy.set(Data("broken-quit-rules".utf8), forKey: "applicationQuitRules")
+    legacy.set("onlyListed", forKey: "ruleMode")
+    legacy.set(true, forKey: "enabled")
+    let corruptQuit = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(corruptQuit.quitRules.isEmpty, "broken legacy quit rules are skipped")
+    precondition(current.object(forKey: "applicationQuitRules") == nil, "broken quit rules are not copied")
+    precondition(corruptQuit.mode == .onlyListed, "other settings still migrate")
+    precondition(current.bool(forKey: "enabled"), "other missing settings are filled")
+    let afterCorruptQuit = snapshot()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(snapshot() == afterCorruptQuit, "partial settings migration is idempotent")
+}
+print("Legacy domain migration cases passed")
+
+MainActor.assumeIsolated {
+    // 名单结构：历史 23 条冻结 + 常驻后台 33 条 + Messages/Terminal 2 条 = 统一默认 58 条
+    precondition(RuleStore.legacyDefaults.count == 23, "frozen legacy default list")
+    precondition(RuleStore.residentRules.count == 33, "resident app list")
+    let historicalNewUserExtras: Set<AppRule> = [
+        AppRule(match: .bundleID, value: "com.apple.MobileSMS"),
+        AppRule(match: .bundleID, value: "com.apple.Terminal"),
+    ]
+    precondition(RuleStore.defaultRules == RuleStore.legacyDefaults
+        .union(RuleStore.residentRules)
+        .union(historicalNewUserExtras))
+    precondition(RuleStore.defaultRules.count == 58, "single unified default list")
+    precondition(RuleStore.historicalAutoSeededRules.count == 2, "two historical auto-seeded snapshots")
+    precondition(RuleStore.historicalAutoSeededRules.contains(RuleStore.legacyDefaults))
+    precondition(RuleStore.historicalAutoSeededRules[1] == RuleStore.legacyDefaults.union(historicalNewUserExtras))
+    precondition(RuleStore.historicalAutoSeededRules[1].count == 25)
+
+    let currentName = "fun.bgm.neatquit.defaults-revision.\(UUID().uuidString)"
+    let legacyName = "fun.bgm.neatquit.defaults-revision-legacy.\(UUID().uuidString)"
+    let current = UserDefaults(suiteName: currentName)!
+    let legacy = UserDefaults(suiteName: legacyName)!
+    defer {
+        current.removePersistentDomain(forName: currentName)
+        legacy.removePersistentDomain(forName: legacyName)
+    }
+
+    func resetDomains() {
+        current.removePersistentDomain(forName: currentName)
+        legacy.removePersistentDomain(forName: legacyName)
+    }
+    func storedData() -> Data? { current.data(forKey: "applicationRules") }
+    func storedRules() -> Set<AppRule>? {
+        storedData().flatMap { try? JSONDecoder().decode(Set<AppRule>.self, from: $0) }
+    }
+
+    // 旧版自动播种的 23 条 → 一次性升级为当前默认名单（58）
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.historicalAutoSeededRules[0]), forKey: "applicationRules")
+    let from23 = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(from23.exceptionRules == RuleStore.defaultRules, "auto-seeded 23 upgraded to the default list")
+    precondition(storedRules() == RuleStore.defaultRules, "23-rule upgrade is persisted")
+    precondition(current.integer(forKey: "rules.defaultsRevision") == 2, "revision marker written")
+    let after23 = storedData()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(storedData() == after23, "23-rule upgrade is idempotent")
+
+    // 旧版自动播种的 25 条 → 同样升级为 58
+    resetDomains()
+    current.set(try! JSONEncoder().encode(RuleStore.historicalAutoSeededRules[1]), forKey: "applicationRules")
+    let from25 = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(from25.exceptionRules == RuleStore.defaultRules, "auto-seeded 25 upgraded to the default list")
+    precondition(storedRules() == RuleStore.defaultRules)
+    precondition(current.integer(forKey: "rules.defaultsRevision") == 2)
+    let after25 = storedData()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(storedData() == after25, "25-rule upgrade is idempotent")
+
+    // 用户编辑过的列表（58+1）绝不改动：字节层面逐字节一致，但仍写升级标记（只扫一次）
+    resetDomains()
+    var customRules = RuleStore.defaultRules
+    customRules.insert(AppRule(match: .bundleID, value: "com.example.custom"))
+    let customBytes = try! JSONEncoder().encode(customRules)
+    current.set(customBytes, forKey: "applicationRules")
+    let keepCustom = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(keepCustom.exceptionRules == customRules, "edited list is not replaced")
+    precondition(storedData() == customBytes, "edited list bytes are byte-identical")
+    precondition(current.integer(forKey: "rules.defaultsRevision") == 2, "marker still written for edited list")
+    let afterCustom = storedData()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(storedData() == afterCustom, "edited list stays untouched on second launch")
+
+    // 空列表（用户主动清空）同样不动
+    resetDomains()
+    let emptyBytes = try! JSONEncoder().encode(Set<AppRule>())
+    current.set(emptyBytes, forKey: "applicationRules")
+    let keepEmpty = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(keepEmpty.exceptionRules.isEmpty, "empty list is not replaced")
+    precondition(storedData() == emptyBytes, "empty list bytes are byte-identical")
+    precondition(current.integer(forKey: "rules.defaultsRevision") == 2)
+
+    // 任意非历史快照的列表都不升级：显式断言配置推广前后逐字节一致（58 缺 1 条）
+    resetDomains()
+    var nearlyDefault = RuleStore.defaultRules
+    nearlyDefault.remove(AppRule(match: .bundleID, value: "com.docker.docker"))
+    let nearlyBytes = try! JSONEncoder().encode(nearlyDefault)
+    current.set(nearlyBytes, forKey: "applicationRules")
+    let keepNearly = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(keepNearly.exceptionRules == nearlyDefault, "near-default list is not replaced")
+    precondition(storedData() == nearlyBytes, "near-default list bytes are byte-identical")
+
+    // 数据损坏：内存回退 58、备份原始字节、主键原始字节不被改写
+    resetDomains()
+    let brokenDefaults = Data("broken-defaults".utf8)
+    current.set(brokenDefaults, forKey: "applicationRules")
+    let recovered = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(recovered.exceptionRules == RuleStore.defaultRules, "corrupt list falls back to the default list")
+    precondition(current.data(forKey: "applicationRules.unreadable") == brokenDefaults, "corrupt list is backed up")
+    precondition(storedData() == brokenDefaults, "corrupt bytes are not rewritten")
+    precondition(current.integer(forKey: "rules.defaultsRevision") == 2)
+
+    // 全新安装：播种 defaultRules(58)，仍然需要引导
+    resetDomains()
+    let fresh = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(fresh.needsOnboarding, "fresh install still needs onboarding")
+    precondition(fresh.exceptionRules == RuleStore.defaultRules, "fresh install seeds the unified default list")
+    precondition(storedRules() == RuleStore.defaultRules)
+    let afterFresh = storedData()
+    _ = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(storedData() == afterFresh, "fresh install seeding is idempotent")
+
+    // 有使用记录但从未保存列表：单一分支直接播种 58（existing 只影响 onboarding 标记）
+    resetDomains()
+    current.set(true, forKey: "enabled")
+    let returning = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    precondition(!returning.needsOnboarding)
+    precondition(returning.exceptionRules == RuleStore.defaultRules, "returning user also seeds the unified default list")
+    precondition(storedRules() == RuleStore.defaultRules)
+}
+print("Default rules revision cases passed")
+
+MainActor.assumeIsolated {
+    let currentName = "fun.bgm.neatquit.reset-tests.\(UUID().uuidString)"
+    let legacyName = "fun.bgm.neatquit.reset-legacy.\(UUID().uuidString)"
+    let current = UserDefaults(suiteName: currentName)!
+    let legacy = UserDefaults(suiteName: legacyName)!
+    defer {
+        current.removePersistentDomain(forName: currentName)
+        legacy.removePersistentDomain(forName: legacyName)
+    }
+
+    func storedRules(forKey key: String) -> Set<AppRule>? {
+        current.data(forKey: key).flatMap { try? JSONDecoder().decode(Set<AppRule>.self, from: $0) }
+    }
+    func metadataSnapshot() -> NSDictionary {
+        let keys = [
+            "rules.defaultsRevision", "rules.migratedFromLegacyDomain",
+            "rules.onboardingHandled", "rules.legacyUsageSnapshot",
+            "license.legacyPro", "license.key",
+        ]
+        var values: [String: Any] = [:]
+        for key in keys {
+            if let value = current.object(forKey: key) { values[key] = value }
+        }
+        return values as NSDictionary
+    }
+
+    // 排除模式：重置回内置默认例外名单
+    let store = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    let customRule = AppRule(match: .bundleID, value: "com.example.custom")
+    store.addApplication(bundleID: customRule.value)
+    precondition(store.exceptionRules.contains(customRule))
+    let metadataBefore = metadataSnapshot()
+    var policies: [RulePolicy] = []
+    store.onChange = { policies.append($0) }
+
+    store.resetActiveRulesToDefault()
+    precondition(store.exceptionRules == RuleStore.defaultRules, "exclude mode resets to the builtin default list")
+    precondition(store.policy == RulePolicy(mode: .allExceptListed, rules: RuleStore.defaultRules))
+    precondition(storedRules(forKey: "applicationRules") == RuleStore.defaultRules, "reset is persisted")
+    precondition(policies.count == 1 && policies[0] == store.policy, "reset notifies onChange once")
+    precondition(metadataSnapshot() == metadataBefore, "reset does not touch migration or license state")
+
+    // 已等于默认时再次重置：幂等，不产生额外存储变化
+    let storedAfterReset = current.data(forKey: "applicationRules")
+    store.resetActiveRulesToDefault()
+    precondition(store.exceptionRules == RuleStore.defaultRules)
+    precondition(current.data(forKey: "applicationRules") == storedAfterReset, "second reset writes the same list")
+    precondition(metadataSnapshot() == metadataBefore, "second reset keeps metadata")
+
+    // 仅包含模式：清空 quitRules，排除列表与元数据都不动
+    let onlyStore = RuleStore(defaults: current, legacyDomainDefaults: legacy)
+    onlyStore.setMode(.onlyListed)
+    onlyStore.addApplication(bundleID: "com.example.only")
+    precondition(storedRules(forKey: "applicationQuitRules")?.isEmpty == false)
+    let exceptionBefore = onlyStore.exceptionRules
+    let exceptionStoredBefore = current.data(forKey: "applicationRules")
+    let metadataBeforeOnly = metadataSnapshot()
+    var onlyPolicies: [RulePolicy] = []
+    onlyStore.onChange = { onlyPolicies.append($0) }
+
+    onlyStore.resetActiveRulesToDefault()
+    precondition(onlyStore.quitRules.isEmpty, "only-listed reset clears quit rules")
+    precondition(storedRules(forKey: "applicationQuitRules")?.isEmpty == true, "cleared quit rules are persisted")
+    precondition(onlyStore.exceptionRules == exceptionBefore, "exclude list is untouched in only-listed mode")
+    precondition(current.data(forKey: "applicationRules") == exceptionStoredBefore, "exclude list storage is untouched")
+    precondition(onlyStore.policy == RulePolicy(mode: .onlyListed, rules: []))
+    precondition(onlyPolicies.count == 1 && onlyPolicies[0] == onlyStore.policy, "only-listed reset notifies onChange")
+    precondition(metadataSnapshot() == metadataBeforeOnly, "only-listed reset keeps migration and license state")
+}
+print("Reset to default rules cases passed")
+
+MainActor.assumeIsolated {
+    let name = "fun.bgm.neatquit.unreadable-tests.\(UUID().uuidString)"
+    let current = UserDefaults(suiteName: name)!
+    defer { current.removePersistentDomain(forName: name) }
+
+    current.set(true, forKey: "rules.onboardingHandled")
+    let brokenRules = Data("broken-rules".utf8)
+    let brokenQuitRules = Data("broken-quit-rules".utf8)
+    current.set(brokenRules, forKey: "applicationRules")
+    current.set(brokenQuitRules, forKey: "applicationQuitRules")
+
+    let store = RuleStore(defaults: current, legacyDomainDefaults: nil)
+    precondition(store.exceptionRules == RuleStore.defaultRules, "corrupt rules fall back to the default list")
+    precondition(store.quitRules.isEmpty, "corrupt quit rules fall back to empty list")
+    precondition(current.data(forKey: "applicationRules.unreadable") == brokenRules, "original rules data backed up")
+    precondition(current.data(forKey: "applicationQuitRules.unreadable") == brokenQuitRules, "original quit rules data backed up")
+    precondition(RuleStore.unreadableBackupKey(for: "applicationRules") == "applicationRules.unreadable")
+    let logMessage = RuleStore.decodeFailureLogMessage(key: "applicationRules", reason: "decode test")
+    precondition(logMessage.contains("applicationRules.unreadable"), "log message points at the backup")
+    precondition(RuleStore.logCategory == "rules")
+    precondition(RuleStore.logSubsystem == (Bundle.main.bundleIdentifier ?? "fun.bgm.neatquit"))
+
+    // 已有备份不被后来的坏数据覆盖
+    current.set(Data("broken-again".utf8), forKey: "applicationRules")
+    _ = RuleStore(defaults: current, legacyDomainDefaults: nil)
+    precondition(current.data(forKey: "applicationRules.unreadable") == brokenRules, "first backup is kept")
+
+    // 后续增删规则只写主键，不删除备份
+    store.addApplication(bundleID: "com.example.after-corrupt")
+    precondition(store.exceptionRules.contains(AppRule(match: .bundleID, value: "com.example.after-corrupt")))
+    precondition(current.data(forKey: "applicationRules.unreadable") == brokenRules, "editing rules keeps the backup")
+    precondition(current.data(forKey: "applicationRules") != brokenRules, "new rules replace the corrupt blob")
+}
+print("Unreadable rule backup cases passed")
+
+MainActor.assumeIsolated {
+    let name = "fun.bgm.neatquit.remote-tests.\(UUID().uuidString)"
+    let prefs = UserDefaults(suiteName: name)!
+    defer { prefs.removePersistentDomain(forName: name) }
+
+    let writer = RuleStore(defaults: prefs, legacyDomainDefaults: nil)
+    let reader = RuleStore(defaults: prefs, legacyDomainDefaults: nil)
+    let remoteRule = AppRule(match: .bundleID, value: "com.example.remote")
+    writer.addApplication(bundleID: remoteRule.value)
+    precondition(!reader.exceptionRules.contains(remoteRule), "reader is stale before the broadcast is applied")
+
+    let savedRules = prefs.data(forKey: "applicationRules")
+    reader.applyRemoteChange()
+    precondition(reader.exceptionRules == writer.exceptionRules, "remote change refreshes in-memory rules")
+    precondition(prefs.data(forKey: "applicationRules") == savedRules, "remote refresh does not write to disk")
+
+    writer.setMode(.onlyListed)
+    precondition(reader.mode == .allExceptListed)
+    reader.applyRemoteChange()
+    precondition(reader.mode == .onlyListed, "remote change refreshes mode")
+
+    // 没有变化时刷新是 no-op：不写盘也不重复通知，因此不会和广播形成保存回环
+    let afterRefresh = prefs.data(forKey: "applicationRules")
+    var notified = 0
+    reader.onChange = { _ in notified += 1 }
+    reader.applyRemoteChange()
+    precondition(notified == 0, "no-op refresh does not notify")
+    precondition(prefs.data(forKey: "applicationRules") == afterRefresh, "no-op refresh does not write")
+}
+print("Multi-instance rule refresh cases passed")
 
 let scheduleNow = Date(timeIntervalSince1970: 1_700_000_000)
 let sampleAction = ScheduledAction(

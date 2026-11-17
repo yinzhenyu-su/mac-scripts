@@ -48,6 +48,11 @@
 "settings.search.placeholder" = "搜索 App";
 "settings.search.clear" = "清空搜索";
 "settings.search.noResults" = "没有匹配的 App";
+"settings.reset" = "重置为默认规则";
+"settings.reset.title" = "要重置为默认规则吗？";
+"settings.reset.message.exclude" = "当前排除列表会被内置默认规则覆盖，这个操作无法撤销。";
+"settings.reset.message.only" = "当前仅包含列表会被清空（该模式的默认列表为空），这个操作无法撤销。";
+"settings.reset.confirm" = "重置";
 "rule.detail.applicationName" = "按应用名称匹配";
 "rule.error.missingBundleID" = "无法读取这个 App 的 Bundle ID。";
 
@@ -193,3 +198,45 @@
 "disk.access.intro.title" = "需要磁盘访问权限";
 "disk.access.intro.message" = "为了在倒计时结束时自动弹出「%@」，智能退出需要访问这块磁盘。接下来系统会请求「可移除宗卷」权限，请选择「允许」。";
 "disk.access.continue" = "继续";
+
+/* 内置默认名单的显示名：未安装该 App 时用这里的文案代替裸 bundle ID */
+"rule.builtin.wechat" = "微信";
+"rule.builtin.qq" = "QQ";
+"rule.builtin.qqmusic" = "QQ 音乐";
+"rule.builtin.spotify" = "Spotify";
+"rule.builtin.music" = "音乐";
+"rule.builtin.telegram" = "Telegram";
+"rule.builtin.netease-music" = "网易云音乐";
+"rule.builtin.sogou-input" = "搜狗输入法";
+"rule.builtin.baidu-ime" = "百度输入法";
+"rule.builtin.karabiner" = "Karabiner-Elements";
+"rule.builtin.logi-options" = "Logi Options+";
+"rule.builtin.mos" = "Mos";
+"rule.builtin.raycast" = "Raycast";
+"rule.builtin.alfred" = "Alfred";
+"rule.builtin.stats" = "Stats";
+"rule.builtin.amphetamine" = "Amphetamine";
+"rule.builtin.bartender" = "Bartender";
+"rule.builtin.rectangle" = "Rectangle";
+"rule.builtin.surge" = "Surge";
+"rule.builtin.clash-verge" = "Clash Verge";
+"rule.builtin.tailscale" = "Tailscale";
+"rule.builtin.tailscale-standalone" = "Tailscale（独立安装）";
+"rule.builtin.wireguard" = "WireGuard";
+"rule.builtin.warp" = "Cloudflare WARP";
+"rule.builtin.dropbox" = "Dropbox";
+"rule.builtin.onedrive" = "OneDrive";
+"rule.builtin.google-drive" = "Google 云端硬盘";
+"rule.builtin.nutstore" = "坚果云";
+"rule.builtin.baidu-netdisk" = "百度网盘";
+"rule.builtin.slack" = "Slack";
+"rule.builtin.discord" = "Discord";
+"rule.builtin.teams" = "Microsoft Teams";
+"rule.builtin.feishu" = "飞书";
+"rule.builtin.feishu-legacy" = "飞书（旧版）";
+"rule.builtin.wecom" = "企业微信";
+"rule.builtin.signal" = "Signal";
+"rule.builtin.whatsapp" = "WhatsApp";
+"rule.builtin.cleanshot" = "CleanShot X";
+"rule.builtin.maccy" = "Maccy";
+"rule.builtin.docker" = "Docker";

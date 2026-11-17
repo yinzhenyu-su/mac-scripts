@@ -48,6 +48,11 @@
 "settings.search.placeholder" = "Search apps";
 "settings.search.clear" = "Clear search";
 "settings.search.noResults" = "No matching apps";
+"settings.reset" = "Reset to Defaults";
+"settings.reset.title" = "Reset to Default Rules?";
+"settings.reset.message.exclude" = "The current exception list will be replaced by the built-in default rules. This cannot be undone.";
+"settings.reset.message.only" = "The current \"only listed\" list will be cleared (its default list is empty). This cannot be undone.";
+"settings.reset.confirm" = "Reset";
 "rule.detail.applicationName" = "Match by application name";
 "rule.error.missingBundleID" = "Unable to read this app's Bundle ID.";
 
@@ -193,3 +198,45 @@
 "disk.access.intro.title" = "Disk Access Required";
 "disk.access.intro.message" = "To eject \"%@\" when the timer ends, Neat Quit needs access to this disk. macOS will ask for Removable Volumes access next; choose Allow.";
 "disk.access.continue" = "Continue";
+
+/* Display names for the built-in default rules: used instead of raw bundle IDs when the app is not installed */
+"rule.builtin.wechat" = "WeChat";
+"rule.builtin.qq" = "QQ";
+"rule.builtin.qqmusic" = "QQ Music";
+"rule.builtin.spotify" = "Spotify";
+"rule.builtin.music" = "Music";
+"rule.builtin.telegram" = "Telegram";
+"rule.builtin.netease-music" = "NetEase Cloud Music";
+"rule.builtin.sogou-input" = "Sogou Input";
+"rule.builtin.baidu-ime" = "Baidu IME";
+"rule.builtin.karabiner" = "Karabiner-Elements";
+"rule.builtin.logi-options" = "Logi Options+";
+"rule.builtin.mos" = "Mos";
+"rule.builtin.raycast" = "Raycast";
+"rule.builtin.alfred" = "Alfred";
+"rule.builtin.stats" = "Stats";
+"rule.builtin.amphetamine" = "Amphetamine";
+"rule.builtin.bartender" = "Bartender";
+"rule.builtin.rectangle" = "Rectangle";
+"rule.builtin.surge" = "Surge";
+"rule.builtin.clash-verge" = "Clash Verge";
+"rule.builtin.tailscale" = "Tailscale";
+"rule.builtin.tailscale-standalone" = "Tailscale (Standalone)";
+"rule.builtin.wireguard" = "WireGuard";
+"rule.builtin.warp" = "Cloudflare WARP";
+"rule.builtin.dropbox" = "Dropbox";
+"rule.builtin.onedrive" = "OneDrive";
+"rule.builtin.google-drive" = "Google Drive";
+"rule.builtin.nutstore" = "Nutstore";
+"rule.builtin.baidu-netdisk" = "Baidu Netdisk";
+"rule.builtin.slack" = "Slack";
+"rule.builtin.discord" = "Discord";
+"rule.builtin.teams" = "Microsoft Teams";
+"rule.builtin.feishu" = "Feishu";
+"rule.builtin.feishu-legacy" = "Feishu (Legacy)";
+"rule.builtin.wecom" = "WeCom";
+"rule.builtin.signal" = "Signal";
+"rule.builtin.whatsapp" = "WhatsApp";
+"rule.builtin.cleanshot" = "CleanShot X";
+"rule.builtin.maccy" = "Maccy";
+"rule.builtin.docker" = "Docker";
