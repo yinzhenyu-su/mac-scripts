@@ -11,18 +11,43 @@ import hashlib
 import json
 import os
 import plistlib
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import urllib.request
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 REPO = "yinzhenyu-su/mac-scripts"
 APPCAST_URL = "https://app.bgm.fun/appcast.xml"
 SPARKLE = "{http://www.andymatuschak.org/xml-namespaces/sparkle}"
 BUNDLE_ID = "fun.bgm.neatquit"
 MIN_MACOS = "13.0"
+
+# 本次 tag 的工程配置（相对于脚本所在仓库），用来核对 DMG 里的 Bundle ID。
+# verify job 是浅克隆，但工作区就是本次 tag 的代码，直接读文件即可，不依赖 git 历史。
+PROJECT_FILE = Path(__file__).resolve().parent.parent / "neatquit" / "NeatQuit.xcodeproj" / "project.pbxproj"
+BUNDLE_ID_RE = re.compile(r"PRODUCT_BUNDLE_IDENTIFIER\s*=\s*([^;]+);")
+
+
+def project_bundle_id() -> str:
+    """从本次 tag 的 project.pbxproj 读取 PRODUCT_BUNDLE_IDENTIFIER。
+
+    Debug / Release 必须一致（且只能有一个值），否则无法判断“期望的” Bundle ID。
+    """
+    if not PROJECT_FILE.is_file():
+        raise SystemExit(f"找不到工程文件：{PROJECT_FILE}")
+    values = {
+        match.group(1).strip().strip('"')
+        for match in BUNDLE_ID_RE.finditer(PROJECT_FILE.read_text(encoding="utf-8"))
+    }
+    if len(values) != 1:
+        raise SystemExit(
+            f"工程 PRODUCT_BUNDLE_IDENTIFIER 不唯一：{sorted(values) or '（未找到）'}"
+        )
+    return values.pop()
 
 
 def run(command: list[str]) -> subprocess.CompletedProcess[str]:
@@ -108,6 +133,12 @@ def main() -> int:
     else:
         print("✓ appcast 签名存在")
 
+    # 本次 tag 的工程配置：DMG 的 Bundle ID 必须与它一致。
+    # Bundle ID 是 UserDefaults 的域，换掉它等于清空老用户的规则和许可证，
+    # 所以这里以工程文件为准，再和硬编码常量 BUNDLE_ID 对齐（常量兜底，防工程被改错）。
+    expected_bundle_id = project_bundle_id()
+    check("工程 PRODUCT_BUNDLE_IDENTIFIER", expected_bundle_id, BUNDLE_ID)
+
     # 下载并核对 DMG
     workdir = tempfile.mkdtemp(prefix="neatquit-verify-")
     dmg_path = os.path.join(workdir, asset_name)
@@ -145,7 +176,7 @@ def main() -> int:
 
         check("CFBundleShortVersionString", info.get("CFBundleShortVersionString"), version)
         check("CFBundleVersion", info.get("CFBundleVersion"), build)
-        check("CFBundleIdentifier", info.get("CFBundleIdentifier"), BUNDLE_ID)
+        check("CFBundleIdentifier", info.get("CFBundleIdentifier"), expected_bundle_id)
         check("LSMinimumSystemVersion", info.get("LSMinimumSystemVersion"), MIN_MACOS)
 
         resources = os.path.join(app_path, "Contents", "Resources")

@@ -11,7 +11,9 @@
         --signature "$SIGNATURE" \
         --notes-file /tmp/notes.html
 
-同一 build 号重复发布会替换旧条目；结果按 build 号降序保留最近 N 条。
+同一 shortVersionString 重新发布会替换旧条目；结果按 build 号降序保留最近 N 条。
+合并后会校验 build 顺序与版本号顺序一致（不存在版本更低、build 却更大的条目），
+否则拒绝发布——否则用更大的 build 重发旧版本会把旧包插到 feed 顶端，已升级的客户端会被“降级”。
 """
 
 from __future__ import annotations
@@ -192,6 +194,21 @@ def item_version(item: ET.Element) -> int:
         return 0
 
 
+def item_short_version(item: ET.Element) -> str:
+    return (item.findtext(sp("shortVersionString")) or "").strip()
+
+
+SHORT_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+def version_key(short_version: str | None) -> tuple[int, ...]:
+    """把 shortVersionString 变成可比较的数字元组；解析不了时排在最低。"""
+    m = SHORT_VERSION_RE.match((short_version or "").strip())
+    if not m:
+        return (-1,)
+    return tuple(int(part) for part in m.groups())
+
+
 def build_item(
     *,
     short_version: str,
@@ -235,11 +252,37 @@ def build_item(
 
 
 def merge_items(existing: list[ET.Element], new: ET.Element, max_items: int) -> list[ET.Element]:
-    new_build = item_version(new)
-    kept = [i for i in existing if item_version(i) != new_build]
+    """把新条目合并进 appcast：按版本号去重，按 build 号降序保留最近 max_items 条。
+
+    去重键是 sparkle:shortVersionString：同一版本重新发布（比如补更新日志后重打包）
+    会替换旧条目，保留新内容；首次发布（existing 为空）不做单调性校验。
+
+    合并后校验一条不变量：build 顺序必须与版本号顺序一致，即不存在
+    “版本更低、build 却更大”的条目。违反时这个旧版本会排到 feed 顶端，
+    已升级的客户端会被“降级”回旧包（旧包的 Bundle ID 曾不同，会再次清空偏好），
+    因此直接抛 SystemExit（非零退出码）让 CI 失败，而不是发出去。
+    """
+    new_short = item_short_version(new)
+    kept = [item for item in existing if item_short_version(item) != new_short]
     kept.append(new)
-    kept.sort(key=item_version, reverse=True)
-    return kept[:max_items]
+    kept.sort(key=lambda item: (item_version(item), version_key(item_short_version(item))), reverse=True)
+    merged = kept[:max_items]
+
+    if existing:
+        for lower in merged:
+            for higher in merged:
+                if (
+                    version_key(item_short_version(lower)) < version_key(item_short_version(higher))
+                    and item_version(lower) >= item_version(higher)
+                ):
+                    raise SystemExit(
+                        "发布被拒绝：build 顺序与版本号顺序不一致——"
+                        f"{item_short_version(lower)}（build {item_version(lower)}）版本低于 "
+                        f"{item_short_version(higher)}（build {item_version(higher)}），build 却更大。"
+                        "这会把旧包排到 feed 顶端，让已升级的客户端被“降级”回旧版本；"
+                        "请提升版本号发布，或对既有版本用 --replace-notes 只更新日志。"
+                    )
+    return merged
 
 
 def replace_item_notes(

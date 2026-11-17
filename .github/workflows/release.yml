@@ -141,6 +141,50 @@ jobs:
           cat "$RUNNER_TEMP/notes.release.md"
           echo "--------------------"
 
+      # 2.6) Bundle ID 变更门禁：Bundle ID 是 UserDefaults 的域，
+      #      换域等于清空老用户的规则、开关状态和许可证。这种改动必须先有迁移方案
+      #      并人工确认，不能让流水线静默发出去。
+      - name: 校验 Bundle ID 未变更
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          PBX="neatquit/NeatQuit.xcodeproj/project.pbxproj"
+          PREV="$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || true)"
+          if [ -z "$PREV" ]; then
+            echo "没有上一个 tag（首次发版），跳过 Bundle ID 对比"
+            exit 0
+          fi
+          if ! git cat-file -e "${PREV}:${PBX}" 2>/dev/null; then
+            echo "上一个 tag ${PREV} 中不存在 ${PBX}，跳过 Bundle ID 对比"
+            exit 0
+          fi
+          # 工程文件里 Debug / Release 各有一处，取唯一值对比
+          extract_bundle_ids() {
+            grep -oE 'PRODUCT_BUNDLE_IDENTIFIER = [^;]+;' "$1" \
+              | sed -E 's/PRODUCT_BUNDLE_IDENTIFIER = (.*);/\1/' \
+              | tr -d '"' | sed -E 's/[[:space:]]+$//' | sort -u
+          }
+          git show "${PREV}:${PBX}" > "$RUNNER_TEMP/pbx.prev"
+          PREV_IDS="$(extract_bundle_ids "$RUNNER_TEMP/pbx.prev" || true)"
+          CUR_IDS="$(extract_bundle_ids "$PBX" || true)"
+          if [ -z "$CUR_IDS" ]; then
+            echo "::error title=读取 Bundle ID 失败::无法从 ${PBX} 读取 PRODUCT_BUNDLE_IDENTIFIER" >&2
+            exit 1
+          fi
+          if [ -z "$PREV_IDS" ]; then
+            echo "::warning title=无法对比 Bundle ID::上一个 tag ${PREV} 中没有 PRODUCT_BUNDLE_IDENTIFIER，已跳过"
+            exit 0
+          fi
+          echo "上一个 tag ${PREV}：${PREV_IDS}"
+          echo "本次 tag ${TAG_NAME}：${CUR_IDS}"
+          if [ "$CUR_IDS" != "$PREV_IDS" ]; then
+            echo "::error title=Bundle ID 变更::Bundle ID 从 [${PREV_IDS}] 变成 [${CUR_IDS}]"
+            echo "Bundle ID 变更会清空用户偏好（规则、开关、许可证），必须先提供迁移方案并人工确认。" >&2
+            exit 1
+          fi
+          echo "✔ Bundle ID 未变更：${CUR_IDS}"
+
       - name: 发布到 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
